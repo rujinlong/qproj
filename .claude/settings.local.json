@@ -3,7 +3,13 @@
     "allow": [
       "Bash(ls:*)",
       "Bash(git rm:*)",
-      "Bash(Rscript:*)"
+      "Bash(Rscript:*)",
+      "WebFetch(domain:quarto-dev.github.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:pkgdown.r-lib.org)",
+      "WebFetch(domain:cran.r-project.org)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:quarto-dev.r-universe.dev)"
     ]
   }
 }

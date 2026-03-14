@@ -31,6 +31,8 @@ Imports:
     usethis
 Suggests:
     testthat (>= 3.0.0),
-    knitr
+    quarto
 Config/testthat/edition: 3
-VignetteBuilder: knitr
+VignetteBuilder: quarto
+SystemRequirements: Quarto command line tool
+    (https://github.com/quarto-dev/quarto-cli).

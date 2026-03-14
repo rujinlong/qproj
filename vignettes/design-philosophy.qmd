@@ -1,18 +1,13 @@
 ---
 title: "Design Philosophy"
-output: rmarkdown::html_vignette
+format:
+  html:
+    toc: true
 vignette: >
   %\VignetteIndexEntry{Design Philosophy}
+  %\VignetteEngine{quarto::html}
   %\VignetteEncoding{UTF-8}
-  %\VignetteEngine{knitr::rmarkdown}
 ---
-
-```{r, include = FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
-)
-```
 
 This package provides a set of tools to manage reproducible analysis workflows that use Quarto.
 The goal is to provide the "simplest way that works".

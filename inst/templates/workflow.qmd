@@ -21,7 +21,7 @@ params <- list(name = "{{{name}}}")
 #| warning: false
 wd <- "{{{path_proj}}}"
 if (basename(getwd()) != wd) {
-  setwd(here::here(wd))
+    setwd(here::here(wd))
 }
 here::i_am(paste0(params$name, ".qmd"), uuid = "{{{uuid}}}")
 qproj::proj_create_dir_target(params$name, clean = FALSE)
@@ -49,12 +49,6 @@ suppressPackageStartupMessages({
   devtools::load_all()
 })
 ```
-
-## Workflow tips
-
-- Write results to your own directory: `path_target("my-file.csv")`.
-- Read earlier outputs (only those that run before this file): `path_source("00-import", "raw.csv")`.
-- Keep each file responsible for its own data directory to avoid accidental overwrites.
 
 ## Tasks
 
