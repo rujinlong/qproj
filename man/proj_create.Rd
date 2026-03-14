@@ -20,7 +20,12 @@ Creates a new analysis project directory with a \code{DESCRIPTION} file,
 \code{NAMESPACE}, \code{README.md}, and \code{.gitignore}.
 
 Provide an absolute \code{path}, or a relative \code{path} from your current
-working-directory.
+working-directory. The target directory must either not exist or be
+empty; otherwise creation will abort to avoid overwriting files.
+
+Any named entries supplied via \code{fields} are written into
+\code{DESCRIPTION}, allowing you to override defaults such as \code{Title},
+\code{Version}, or add custom fields.
 }
 \examples{
 # not run because it produces side effects

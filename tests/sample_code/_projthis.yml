@@ -1,5 +1,0 @@
-render:
-  first:
-    00-import.Rmd
-  last:
-    README.Rmd

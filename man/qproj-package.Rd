@@ -8,17 +8,16 @@
 \description{
 A lightweight framework for Quarto-based analysis workflows.
 }
-\section{Setup functions}{
-
+\details{
+\subsection{Setup functions}{
 \itemize{
 \item \code{\link[=proj_create]{proj_create()}}: Create a new analysis project.
-\item \code{\link[=proj_use_workflow]{proj_use_workflow()}}: Set up an \code{analyses/} workflow directory.
+\item \code{\link[=proj_use_workflow]{proj_use_workflow()}}: Set up an \verb{analyses/} workflow directory.
 \item \code{\link[=use_qmd]{use_qmd()}}: Create a new \code{.qmd} analysis file from template.
 }
 }
 
-\section{Path helpers (use inside \code{.qmd} files)}{
-
+\subsection{Path helpers (use inside \code{.qmd} files)}{
 \itemize{
 \item \code{\link[=proj_create_dir_target]{proj_create_dir_target()}}: Create the target data directory for a \code{.qmd} file.
 \item \code{\link[=proj_path_target]{proj_path_target()}}: Returns a path-generating function for the target directory.
@@ -27,22 +26,23 @@ A lightweight framework for Quarto-based analysis workflows.
 }
 }
 
-\section{Dependency management}{
-
+\subsection{Dependency management}{
 \itemize{
 \item \code{\link[=proj_check_deps]{proj_check_deps()}}: Check for missing/extra dependencies in DESCRIPTION.
 \item \code{\link[=proj_update_deps]{proj_update_deps()}}: Update DESCRIPTION with detected dependencies.
 \item \code{\link[=proj_install_deps]{proj_install_deps()}}: Install all dependencies from DESCRIPTION via pak.
 }
 }
-
-\author{
-\strong{Maintainer}: Rujin Long \email{rujinlong@example.com} [copyright holder]
 }
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/rujinlong/projthis}
-  \item Report bugs at \url{https://github.com/rujinlong/projthis/issues}
+  \item \url{https://github.com/rujinlong/qproj}
+  \item Report bugs at \url{https://github.com/rujinlong/qproj/issues}
 }
+
+}
+\author{
+\strong{Maintainer}: Rujin Long \email{rujinlong@example.com}
+
 }

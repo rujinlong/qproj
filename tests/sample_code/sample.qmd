@@ -1,6 +1,6 @@
 ---
 title: sample code
-output: github_document
+format: html
 ---
 
 ```{r}

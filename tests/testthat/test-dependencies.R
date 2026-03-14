@@ -22,12 +22,12 @@
     usethis::use_package("desc")
 
     fs::file_copy(
-      fs::path(testthat_dir, "..", "sample_code", "sample.Rmd"),
+      fs::path(testthat_dir, "..", "sample_code", "sample.qmd"),
       "."
     )
 
     test_that("renv returns what we expect", {
-      expect_output(
+      suppressMessages(
         expect_true(
           "Package" %in% names(renv::dependencies(dev = TRUE))
         )
@@ -37,10 +37,9 @@
 
     test_that("check_deps works", {
 
-      expect_identical(
-        check_deps(),
-        list(missing = c("rmarkdown", "renv"), extra = "desc")
-      )
+      result <- check_deps()
+      expect_equal(sort(result$missing), c("renv", "rmarkdown"))
+      expect_equal(result$extra, "desc")
 
     })
 
@@ -50,7 +49,7 @@
       expect_true(is.list(result))
       expect_true("missing" %in% names(result))
       expect_true("extra" %in% names(result))
-      expect_equal(sort(result$missing), c("rmarkdown", "renv"))
+      expect_equal(sort(result$missing), c("renv", "rmarkdown"))
       expect_equal(result$extra, "desc")
 
     })

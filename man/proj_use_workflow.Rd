@@ -17,7 +17,7 @@ contents to \code{.gitignore}.}
 Invisible \code{NULL}, called for side effects.
 }
 \description{
-Creates an \code{analyses/} directory (or custom path) with a \code{data/}
+Creates an \verb{analyses/} directory (or custom path) with a \verb{data/}
 subdirectory, \code{.gitignore} rules, and a \code{README.md}.
 }
 \examples{

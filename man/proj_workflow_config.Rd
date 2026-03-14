@@ -22,9 +22,9 @@ The configuration supports a single element, \code{render}.
 
 \if{html}{\out{<div class="sourceCode">}}\preformatted{render:
   first:
-    00-import.Rmd
+    00-import.qmd
   last:
-    99-publish.Rmd
+    99-publish.qmd
 }\if{html}{\out{</div>}}
 }
 \keyword{internal}

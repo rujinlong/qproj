@@ -52,12 +52,12 @@
     test_that("proj_workflow_config() works", {
 
       fs::file_copy(
-        fs::path(testthat_dir, "..", "sample_code", "_projthis.yml"),
-        fs::path(localdir, "analyses", "_projthis.yml")
+        fs::path(testthat_dir, "..", "sample_code", "_qproj.yml"),
+        fs::path(localdir, "analyses", "_qproj.yml")
       )
 
       expect_true(
-        fs::file_exists(fs::path(localdir, "analyses", "_projthis.yml"))
+        fs::file_exists(fs::path(localdir, "analyses", "_qproj.yml"))
       )
 
       # config file has a specific order
@@ -65,7 +65,7 @@
 
       expect_identical(
         config,
-        list(render = list(first = "00-import.Rmd", last = "README.Rmd"))
+        list(render = list(first = "00-import.qmd", last = "README.qmd"))
       )
 
     })

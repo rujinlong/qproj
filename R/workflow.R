@@ -74,7 +74,7 @@ use_qmd <- function(name, path_proj = "analyses",
 
 #' Get workflow configuration
 #'
-#' Looks for a file named `_projthis.yml` in `path_proj`. If present, reads
+#' Looks for a file named `_qproj.yml` in `path_proj`. If present, reads
 #' using [yaml::read_yaml()]; if not present, returns `NULL`.
 #'
 #' The configuration supports a single element, `render`.
@@ -82,9 +82,9 @@ use_qmd <- function(name, path_proj = "analyses",
 #' ```
 #' render:
 #'   first:
-#'     00-import.Rmd
+#'     00-import.qmd
 #'   last:
-#'     99-publish.Rmd
+#'     99-publish.qmd
 #' ```
 #'
 #' @param path_proj `character` path to workflow directory,
@@ -97,7 +97,7 @@ use_qmd <- function(name, path_proj = "analyses",
 #'
 proj_workflow_config <- function(path_proj) {
 
-  path_yml <- fs::path(path_proj, "_projthis.yml")
+  path_yml <- fs::path(path_proj, "_qproj.yml")
 
   if (!fs::file_exists(path_yml)) {
     return(NULL)

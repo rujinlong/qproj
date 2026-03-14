@@ -21,7 +21,4 @@
 #' - [proj_update_deps()]: Update DESCRIPTION with detected dependencies.
 #' - [proj_install_deps()]: Install all dependencies from DESCRIPTION via pak.
 #'
-#' @docType package
-#' @name qproj-package
-#' @aliases qproj
-NULL
+"_PACKAGE"

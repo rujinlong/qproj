@@ -11,7 +11,7 @@ Description: A lightweight framework for Quarto-based analysis project
 License: GPL-3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 URL: https://github.com/rujinlong/qproj
 BugReports: https://github.com/rujinlong/qproj/issues
 Imports:

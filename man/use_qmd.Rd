@@ -28,6 +28,30 @@ Invisible \code{NULL}, called for side effects.
 Use this function to create a new, templated Quarto file in a workflow
 directory.
 }
+\details{
+This is an opinionated system; it introduces restrictions to help keep you
+"inside the boat":
+\itemize{
+\item All the Quarto files in a workflow are in the same directory; there
+are no sub-directories with Quarto files.
+\item Using \code{\link[here:i_am]{here::i_am()}} establishes the root of the workflow as the
+directory that contains the Quarto file. In other words, when the
+Quarto file is rendered, this directory becomes the \code{\link[here:here]{here::here()}} root.
+\item It creates a dedicated data-directory for this file to write to, making
+sure that this data-directory is empty at the start of the rendering. It
+also provides an accessor function \code{path_target()} that you can use later
+in the file to compose paths to this data-directory. For example:
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{write.csv(mtcars, path_target("mtcars.csv"))
+}\if{html}{\out{</div>}}
+
+It also provides an accessor function to the data directory itself, which
+can be useful for reading data from "previous" files.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{fun_data <- read.csv(path_source("00-import", "fun_data.csv"))
+}\if{html}{\out{</div>}}
+}
+}
 \examples{
 # not run because it creates side effects
 \dontrun{

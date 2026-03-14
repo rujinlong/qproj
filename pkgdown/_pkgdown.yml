@@ -14,52 +14,31 @@ navbar:
         href: articles/design-philosophy.html
 
 reference:
-- title: Package-dependency management
-  desc: |
-    Use these functions to manage a project's package dependencies using the
-    `DESCRIPTION` file.
+- title: Project setup
+  desc: Create and scaffold a new analysis project.
   contents:
   - proj_create
-  - proj_use_description
-  - proj_update_deps
-  - proj_install_deps
-  - proj_refresh_deps
-- title: Workflow management
-  desc: |
-    Use these functions to manage a project workflow.
-  contents:
   - proj_use_workflow
-  - proj_workflow_use_rmd
-  - proj_workflow_render
-  - proj_rmd_render
+  - use_qmd
 - title: Directory management
   desc: |
-    Use these functions to manage directories from within a project-workflow's
-    RMarkdown file.
+    Manage data directories from within a `.qmd` file.
   contents:
   - proj_create_dir_target
   - proj_path_target
+  - proj_path_source
   - proj_dir_info
-- title: Package-dependency management
+- title: Dependency management
   desc: |
-    Use these functions to manage a project's package dependencies using the
-    `DESCRIPTION` file.
+    Manage package dependencies via DESCRIPTION.
   contents:
-  - proj_create
-  - proj_use_description
+  - proj_check_deps
   - proj_update_deps
   - proj_install_deps
-- title: Workflow automation
-  desc: |
-    Use this function to install a GitHub Action that automates the rendering
-    of your project's workflows.
+- title: Configuration
+  desc: Read workflow configuration.
   contents:
-  - proj_workflow_use_action
-- title: Meta
-  desc: ~
+  - proj_workflow_config
+- title: Package
   contents:
   - qproj-package
-
-
-
-

@@ -13,8 +13,8 @@ sort_files <- function(files, first, last) {
   # return sorted, put README at the end
 
   # logical, length of files
-  is_readme <- grepl("^readme\\.rmd$", files, ignore.case = TRUE)
-  starts_with_underscore <- grepl("^_.*\\.rmd$", files, ignore.case = TRUE)
+  is_readme <- grepl("^readme\\.qmd$", files, ignore.case = TRUE)
+  starts_with_underscore <- grepl("^_.*\\.qmd$", files, ignore.case = TRUE)
   is_first <- files %in% first
   is_last <- files %in% last
 
