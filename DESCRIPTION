@@ -1,0 +1,36 @@
+Package: qproj
+Title: Lightweight Framework for Quarto Analysis Workflows
+Version: 0.1.0
+Authors@R:
+  person("Rujin", "Long", role = c("aut", "cre"),
+         email = "rujinlong@example.com")
+Description: A lightweight framework for Quarto-based analysis project
+  workflows. Provides tools to create and manage sequenced Quarto analysis
+  files, with structured data directories and package dependency management
+  via pak.
+License: GPL-3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+URL: https://github.com/rujinlong/qproj
+BugReports: https://github.com/rujinlong/qproj/issues
+Imports:
+    fs,
+    here,
+    glue,
+    yaml,
+    uuid,
+    assertthat,
+    rlang,
+    cli,
+    desc,
+    renv,
+    pak,
+    withr,
+    tibble,
+    usethis
+Suggests:
+    testthat (>= 3.0.0),
+    knitr
+Config/testthat/edition: 3
+VignetteBuilder: knitr
