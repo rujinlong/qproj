@@ -19,6 +19,7 @@ params <- list(name = "{{{name}}}")
 #| include: false
 #| message: false
 #| warning: false
+#| cache: false
 wd <- "{{{path_proj}}}"
 if (basename(getwd()) != wd) {
     setwd(here::here(wd))
@@ -41,6 +42,7 @@ dir.create(path_resource, recursive = TRUE, showWarnings = FALSE)
 #| label: packages
 #| message: false
 #| warning: false
+#| cache: false
 suppressPackageStartupMessages({
   library(here)
   library(conflicted)
