@@ -27,9 +27,9 @@ clone, start with these commands in a clean directory:
 
 ``` r
 # 1. Create the project scaffold (fills DESCRIPTION/NAMESPACE/README/.gitignore)
-qproj::proj_create("my-class-project", fields = list(Title = "My Class Project"))
+qproj::proj_create("myProject", fields = list(Title = "My Class Project"))
 
-setwd("my-class-project")
+setwd("myProject")
 
 # 2. Add a workflow directory and a first analysis file
 qproj::proj_use_workflow("analyses")
