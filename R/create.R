@@ -128,8 +128,18 @@ proj_use_workflow <- function(path_proj = "analyses", git_ignore_data = TRUE) {
       if (length(existing) > 0) {
         cat("\n", file = gitignore_path, append = TRUE)
       }
-      cat(paste0(new_lines, "\n"), file = gitignore_path, append = TRUE)
+      cat(paste0(new_lines, "\n"), sep = "", file = gitignore_path, append = TRUE)
     }
+  }
+
+  # Create _quarto.yml from package template (don't overwrite if user has one)
+  quarto_yml_path <- fs::path(path_proj, "_quarto.yml")
+  if (!fs::file_exists(quarto_yml_path)) {
+    template_path <- system.file("templates", "_quarto.yml", package = "qproj")
+    if (!nzchar(template_path)) {
+      cli::cli_abort("Could not locate {.file _quarto.yml} template in the qproj package.")
+    }
+    fs::file_copy(template_path, quarto_yml_path)
   }
 
   # Create analyses/README.md
@@ -144,14 +154,16 @@ proj_use_workflow <- function(path_proj = "analyses", git_ignore_data = TRUE) {
       "",
       "- Each analysis file writes only to its own subdirectory of `data/`.",
       "- Files are named with a numeric prefix to indicate execution order,",
-      "  e.g. `00-import.qmd`, `01-clean.qmd`, `99-summary.qmd`.",
+      "  e.g. `01-import.qmd`, `02-clean.qmd`, `99-summary.qmd`.",
+      "  The `00-` prefix is reserved for the framework's `data/00-raw/`",
+      "  input region — start your own steps at `01-` or higher.",
       "",
       "## Usage",
       "",
       "Create a new analysis file:",
       "",
       "```r",
-      'qproj::use_qmd("01-clean")',
+      'qproj::use_qmd("01-import")',
       "```"
     ), readme_path)
   }

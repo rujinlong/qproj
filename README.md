@@ -25,18 +25,23 @@ pak::pak("rujinlong/qproj")
 If you want to publish a fresh qproj-based repository for students to
 clone, start with these commands in a clean directory:
 
+Numeric prefixes determine render order. The `00-` prefix is
+reserved for the framework's `data/00-raw/` input region — start your
+own steps at `01-` or higher. See `vignette("design-philosophy")` for
+the full rationale.
+
 ``` r
 # 1. Create the project scaffold (fills DESCRIPTION/NAMESPACE/README/.gitignore)
 qproj::proj_create("myProject", fields = list(Title = "My Class Project"))
 
 setwd("myProject")
 
-# 2. Add a workflow directory and a first analysis file
+# 2. Add a workflow directory (also drops in `_quarto.yml`) and a first analysis file
 qproj::proj_use_workflow("analyses")
-qproj::use_qmd("00-import", path_proj = "analyses", open = FALSE)
+qproj::use_qmd("01-import", path_proj = "analyses", open = FALSE)
 
 # 3. Add more steps as needed
-qproj::use_qmd("01-clean", path_proj = "analyses", open = FALSE)
+qproj::use_qmd("02-clean", path_proj = "analyses", open = FALSE)
 ```
 
 Each `.qmd` created from the template writes to its own

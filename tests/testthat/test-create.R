@@ -50,7 +50,11 @@
     expect_true(fs::dir_exists("analyses/data"))
     expect_true(fs::file_exists("analyses/data/README.md"))
     expect_true(fs::file_exists("analyses/README.md"))
+    expect_true(fs::file_exists("analyses/_quarto.yml"))
     expect_true(fs::file_exists(".gitignore"))
+
+    quarto_yml <- yaml::read_yaml("analyses/_quarto.yml")
+    expect_identical(quarto_yml$format$gfm, "default")
 
     gitignore_lines <- readLines(".gitignore")
     expect_true("analyses/data/*" %in% gitignore_lines)

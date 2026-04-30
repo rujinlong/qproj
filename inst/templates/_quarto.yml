@@ -1,0 +1,29 @@
+project:
+  type: default
+  output-dir: "."
+
+execute:
+  # Freeze: Record computational results and re-use them when source files haven't changed.
+  # This significantly speeds up project iteration.
+  freeze: false
+  warning: false
+  message: false
+
+toc: true
+toc-float: true
+toc-depth: 4
+number-sections: true
+code-line-numbers: true
+code-fold: true
+code-tools: true
+df-print: paged
+reference-location: section
+citation-location: document
+cache: true
+
+author:
+  - name: Your Name
+    orcid: "0000-0000-0000-0000"
+
+format:
+  gfm: default

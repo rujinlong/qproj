@@ -26,7 +26,7 @@ sort_files <- function(files, first, last) {
   unique(c(files_first, files_remainder, files_last, files_readme))
 }
 
-pui_done <- function(x) cli::cli_alert_success(x)
-pui_info  <- function(x) cli::cli_alert_info(x)
-pui_oops  <- function(x) cli::cli_alert_danger(x)
-pui_todo  <- function(x) cli::cli_alert_warning(x)
+pui_done <- function(x, .envir = parent.frame()) cli::cli_alert_success(x, .envir = .envir)
+pui_info <- function(x, .envir = parent.frame()) cli::cli_alert_info(x, .envir = .envir)
+pui_oops <- function(x, .envir = parent.frame()) cli::cli_alert_danger(x, .envir = .envir)
+pui_todo <- function(x, .envir = parent.frame()) cli::cli_alert_warning(x, .envir = .envir)
