@@ -149,6 +149,66 @@ name 闭包进去。 这样 `path_source(...)`
 这条统一管道，将来若要给 raw 访问加日志或权限钩子，只改一处即可。 这也是
 `01-` 命名规则要紧的原因——保证这里的顺序校验静默通过。
 
+## 交互式工作流：切换文档时重跑 `params` + `setup`
+
+5 个 `path_*` 绑定是 **session 级全局变量**。 每份 `.qmd` 的 `setup`
+chunk 在创建它们时，把 `params$name`（当前步骤名）闭包进去。
+
+用 `quarto render <file>` 渲染单个文件时，这套机制很稳：
+
+1.  Quarto 为该文件起一个**全新的 R session**；
+2.  `params` chunk 把 `params$name` 设为该步骤的名字；
+3.  `setup` chunk 创建 5 个 `path_*` 绑定，各自闭包了那个 name；
+4.  后续所有 chunk 都继承到正确的绑定。
+
+但**在 RStudio 的交互式 session 里**，所有打开的 `.qmd` 共用同一个 R
+全局环境。 最近一次跑过的 `setup` chunk 决定了当前 `path_*` 指向哪里。
+两种典型出错模式：
+
+- **绑定残留（静默 bug）。** 你从 `01-import.qmd` 切到
+  `02-clean.qmd`，**不重跑 `02-clean.qmd` 的 `setup`** 就执行某个代码
+  chunk。`path_*` 仍然绑在 `01-import`
+  上，读写跑到错误目录，**且没有任何报错**。
+- **绑定缺失（直接报错）。** 当前 session 里根本没跑过任何
+  `setup`——第一个使用 `path_target` 的 chunk 就会报
+  `Error: object 'params' not found`。
+
+> [!WARNING]
+>
+> ### 经验法则
+>
+> **每当你切到另一个 `.qmd` 准备执行代码，先重跑它的 `params` 和 `setup`
+> chunk。**
+
+**当前 IDE 内的卫生型规避**，从最轻到最重：
+
+1.  用 `quarto render <file>` 跑完整个文件——会自动获得 fresh session
+    和正确的绑定，但产出一份构建物；
+2.  切到不同 `.qmd` 之前重启 R（RStudio：<kbd>Ctrl+Shift+F10</kbd> /
+    <kbd>Cmd+Shift+0</kbd>）；
+3.  每个工作流单独开一个 `.Rproj`，让 `path_*`
+    在不同文件之间根本不可能撞上。
+
+> [!TIP]
+>
+> ### 或者：用 Positron 把陷阱直接消除
+>
+> [Positron](https://positron.posit.co/) 是 Posit 公司的下一代
+> IDE（RStudio 的精神后继）。
+> 它支持**在同一个窗口里同时打开多个互相隔离的 R session**——你可以给每份
+> `.qmd` 配一个独立 session。 每个 session 有自己的独立全局环境，所以
+> `01-import.qmd` 的 `path_*` 绑定**根本不可能泄漏**到 `02-clean.qmd`。
+> 上面整类陷阱在结构上就**不可能发生**——无需任何自律。
+>
+> 多 session
+> 工作流的演示见[这个视频教程](https://www.youtube.com/watch?v=sItCFWvLDJQ)。
+
+这背后是一个 trade-off：qproj
+的路径绑定刻意做成**闭包**，而不是每次调用都要传步骤名的函数（`path_target("02-clean", "a.csv")`
+那种 call-site explicit 但冗长）。 闭包形式让 chunk
+里的代码保持简洁，代价是要求单 session 用户保持 session 卫生——或者使用
+Positron 这种支持每文件独立 session 的 IDE。
+
 ## `clean = TRUE` 与输入数据保护
 
 `proj_create_dir_target(name, clean = TRUE)`

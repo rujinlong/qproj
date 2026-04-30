@@ -171,6 +171,74 @@ read through `path_source` keeps a single chokepoint should we ever want
 to log or hook raw-data access. This is also why the `01-` naming rule
 matters — it keeps the order check silent.
 
+## Interactive workflows: re-run `params` + `setup` when you switch files
+
+The five `path_*` bindings are **session-global variables**. Each
+`.qmd`’s `setup` chunk creates them, closing over `params$name` (the
+current step’s name).
+
+When `quarto render <file>` is invoked, this is robust:
+
+1.  Quarto starts a **fresh R session** for that file.
+2.  The `params` chunk sets `params$name` to the step’s name.
+3.  The `setup` chunk creates the five `path_*` bindings, each closed
+    over that name.
+4.  Every subsequent chunk inherits the correct bindings.
+
+In an **interactive RStudio session**, however, every open `.qmd` shares
+the same R global environment. Whichever file’s `setup` chunk you ran
+most recently wins. Two failure modes:
+
+- **Stale bindings (silent bug).** You switch from `01-import.qmd` to
+  `02-clean.qmd` and run a code chunk before re-running `02-clean.qmd`’s
+  `setup`. The `path_*` bindings still point at `01-import`’s
+  directories. Reads and writes go to the wrong folder, and nothing
+  complains.
+- **Missing bindings (loud error).** No `setup` has been run yet in this
+  session — the very first chunk that uses `path_target` errors with
+  `object 'params' not found`.
+
+> [!WARNING]
+>
+> ### Rule of thumb
+>
+> **When you switch to a different `.qmd` to run code interactively,
+> re-run its `params` and `setup` chunks first.**
+
+**Hygiene-based workarounds** in your current IDE, from lightest to most
+invasive:
+
+1.  Render the whole file via `quarto render <file>` — fresh session,
+    correct bindings for free, at the cost of producing a build
+    artefact.
+2.  Restart R (RStudio: <kbd>Ctrl+Shift+F10</kbd> /
+    <kbd>Cmd+Shift+0</kbd>) before working in a different `.qmd`.
+3.  One `.Rproj` per workflow, so `path_*` bindings cannot collide
+    across unrelated work.
+
+> [!TIP]
+>
+> ### Or: remove the trap entirely with Positron
+>
+> [Positron](https://positron.posit.co/) is Posit’s next-generation IDE
+> (the spiritual successor to RStudio). It supports **multiple isolated
+> R sessions in one window** — you can attach a separate session to each
+> `.qmd` you have open. Each session has its own independent global
+> environment, so `path_*` bindings from `01-import.qmd` literally
+> cannot leak into `02-clean.qmd`. The entire class of pitfalls
+> described above becomes **structurally impossible** — no discipline
+> required.
+>
+> For a walkthrough of the multi-session workflow, see [this video
+> tutorial](https://www.youtube.com/watch?v=sItCFWvLDJQ).
+
+The trade-off behind all this: qproj’s path bindings are deliberately
+**closures** rather than functions you call with the step’s name
+(`path_target("02-clean", "a.csv")` would have been call-site-explicit
+but verbose). The closure form keeps each chunk’s code clean, at the
+cost of demanding session hygiene from single-session users — or a
+per-file-session IDE like Positron.
+
 ## `clean = TRUE` and input safety
 
 `proj_create_dir_target(name, clean = TRUE)` clears the step’s output
