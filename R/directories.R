@@ -22,7 +22,7 @@
 #' @param name `character` name of the workflow component.
 #' @param clean `logical` indicates to start with a clean (empty) directory.
 #'
-#' @return Invisible NULL, called for side effects.
+#' @return Invisible `character` path to the (re)created target directory.
 #'
 #' @examples
 #' # not run because it creates side effects
@@ -35,14 +35,13 @@ proj_create_dir_target <- function(name, clean = TRUE) {
 
   dir_target <- here::here("data", name)
 
-  # if target directory exists and we specify to clean, delete it
   if (fs::dir_exists(dir_target) && clean) {
     fs::dir_delete(dir_target)
   }
 
   fs::dir_create(dir_target)
 
-  invisible(NULL)
+  invisible(dir_target)
 }
 
 #' Create path-generating functions
@@ -125,9 +124,23 @@ proj_path_source <- function(name) {
 
     path <- list(...)
 
+    if (length(path) < 1L) {
+      cli::cli_abort(c(
+        "{.fn path_source} needs the upstream step name as the first argument.",
+        "i" = "Use e.g. {.code path_source(\"01-import\", \"x.csv\")}."
+      ))
+    }
+
     # are we using "previous" data?
     source <- as.character(path[[1]])
     current <- as.character(name)
+
+    if (!nzchar(source) || grepl("\\.[A-Za-z0-9]+$", source)) {
+      cli::cli_warn(c(
+        "{.val {source}} looks like a file name, not a step name.",
+        "i" = "Did you mean {.code path_source(\"01-import\", \"{source}\")} ?"
+      ))
+    }
 
     sorted <-
       sort_files(c(source, current), first = render_first, last = render_last)
@@ -166,18 +179,14 @@ proj_dir_info <- function(path = ".", tz = "UTC",
                           cols = c("path", "type", "size", "modification_time"),
                           ...) {
 
-  # temporarily change directory to "see things"
-  # from that directory's perspective
+  # local_dir so relative paths in `info` come out anchored to `path`
   withr::local_dir(path)
   info <- fs::dir_info(path = ".", ...)
 
-  # set the timezone on all datetime columns, restore tibble
   is_POSIXct <- function(x) inherits(x, "POSIXct")
   info[] <- lapply(info, function(col) if (is_POSIXct(col)) { attr(col, "tzone") <- tz; col } else col)
   info <- tibble::as_tibble(info)
 
-  # select only the requested columns
-  # TODO: worth implementing tidyselect?
   if (!is.null(cols)) {
     info <- info[, cols]
   }

@@ -39,3 +39,33 @@ test_that("print utilities work", {
    expect_no_error(pui_todo("next, ..."))
 
 })
+
+test_that("print utilities resolve glue placeholders in caller frame", {
+
+  x <- 5
+  expect_message(pui_info("value is {x}"), "value is 5")
+
+  hello <- function() {
+    name <- "world"
+    pui_done("hello, {name}")
+  }
+  expect_message(hello(), "hello, world")
+
+})
+
+test_that("is_valid_pkg_name accepts and rejects per CRAN rules", {
+
+  expect_true(is_valid_pkg_name("foo"))
+  expect_true(is_valid_pkg_name("foo.bar"))
+  expect_true(is_valid_pkg_name("foo123"))
+  expect_true(is_valid_pkg_name("aB"))
+
+  expect_false(is_valid_pkg_name("foo-bar"))    # hyphen
+  expect_false(is_valid_pkg_name("1foo"))       # starts with digit
+  expect_false(is_valid_pkg_name("foo."))       # ends with dot
+  expect_false(is_valid_pkg_name("foo..bar"))   # consecutive dots
+  expect_false(is_valid_pkg_name("a"))          # too short
+  expect_false(is_valid_pkg_name("foo bar"))    # space
+  expect_false(is_valid_pkg_name("_foo"))       # underscore
+
+})

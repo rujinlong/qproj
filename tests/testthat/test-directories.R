@@ -9,7 +9,7 @@
   { # create scope for tests
 
     # create project for tests
-    projdir <- fs::path(tempdir, "proj-01")
+    projdir <- fs::path(tempdir, "proj01")
     proj_create(path = projdir)
 
     # change to project directory
@@ -87,11 +87,37 @@
         )
       }
 
+      # forward read produces a warning whose text identifies the offender
       expect_warning(
-        expect_source("02-plot", "temp.csv")
+        expect_source("02-plot", "temp.csv"),
+        "is not previous to"
       )
 
       expect_source("00-import", "temp.csv")
+
+      # no-arg call is a hard error
+      expect_error(
+        path_source(),
+        "needs the upstream step name"
+      )
+
+      # single-arg with a file extension is a likely-mistake warning
+      # (it also fires the forward-read warning since "raw.csv" sorts after the
+      # current step name; check both, in the order they're emitted)
+      expect_warning(
+        expect_warning(
+          path_source("raw.csv"),
+          "looks like a file name"
+        ),
+        "is not previous to"
+      )
+
+    })
+
+    test_that("proj_dir_info() honours custom timezone", {
+
+      df <- proj_dir_info(".", tz = "Asia/Shanghai")
+      expect_identical(attr(df$modification_time, "tzone"), "Asia/Shanghai")
 
     })
 

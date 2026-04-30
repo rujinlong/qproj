@@ -11,7 +11,7 @@
   { # create scope for tests
 
     # create project for tests
-    localdir <- fs::path(tempdir, "proj-01")
+    localdir <- fs::path(tempdir, "proj01")
     proj_create(path = localdir)
 
     # change to project directory
@@ -32,20 +32,33 @@
 
       # we create a Quarto file, and it is where we expect
       expect_no_error(
-        use_qmd("00-import", path_proj = "analyses", open = FALSE)
+        use_qmd("01-import", path_proj = "analyses", open = FALSE)
       )
 
       # check that the file is there
       expect_true(
         fs::file_exists(
-          fs::path(localdir, "analyses", "00-import.qmd")
+          fs::path(localdir, "analyses", "01-import.qmd")
         )
       )
 
       # check qproj:: references in the template
-      content <- readLines(fs::path(localdir, "analyses", "00-import.qmd"))
+      content <- readLines(fs::path(localdir, "analyses", "01-import.qmd"))
       expect_true(any(grepl("qproj::", content)))
       expect_false(any(grepl("projthis::", content)))
+
+      # 00- prefix is reserved for framework input region; users start at 01-
+      expect_error(
+        use_qmd("00-foo", path_proj = "analyses", open = FALSE),
+        "reserved.*00-"
+      )
+
+    })
+
+    test_that("proj_workflow_config() returns NULL when _qproj.yml absent", {
+
+      # at this point analyses/ has no _qproj.yml yet
+      expect_null(proj_workflow_config(fs::path(localdir, "analyses")))
 
     })
 
@@ -65,8 +78,10 @@
 
       expect_identical(
         config,
-        list(render = list(first = "00-import.qmd", last = "README.qmd"))
+        list(render = list(first = "01-import.qmd", last = "README.qmd"))
       )
+
+      expect_no_message(proj_workflow_config(fs::path(localdir, "analyses")))
 
     })
 

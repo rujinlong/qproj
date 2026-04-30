@@ -50,6 +50,16 @@ suppressPackageStartupMessages({
   library(data.table)
   devtools::load_all()
 })
+# Resolve common dplyr / data.table / stats name clashes up front.
+# Add more `conflicts_prefer()` calls below as needed.
+conflicted::conflicts_prefer(
+  dplyr::filter,
+  dplyr::lag,
+  dplyr::first,
+  dplyr::last,
+  dplyr::between,
+  .quiet = TRUE
+)
 ```
 
 ## Tasks

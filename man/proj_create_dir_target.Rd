@@ -12,7 +12,7 @@ proj_create_dir_target(name, clean = TRUE)
 \item{clean}{\code{logical} indicates to start with a clean (empty) directory.}
 }
 \value{
-Invisible NULL, called for side effects.
+Invisible \code{character} path to the (re)created target directory.
 }
 \description{
 A target directory is dedicated to each Quarto file in a workflow.

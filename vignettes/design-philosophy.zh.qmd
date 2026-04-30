@@ -113,6 +113,17 @@ render:
    下游想要这些数据，必须由当前步骤**清洗 / 处理 / 决定要不要发布到 `path_target`**。
    这种不对称是有意的：原始输入数据通常需要归一化才该进入管道，而不是裸传递。
 
+   ::: callout-warning
+   ## 反模式：直接读其他步骤的 `path_data`
+
+   没有什么硬规则阻止 `02-clean.qmd` 越过边界写
+   `here::here(path_raw, "d01-import", "raw.fastq")`，路径会被拼出，文件也读得到。**不要这样做。**
+
+   正确做法是：让 `01-import.qmd` 把数据（清洗或不清洗）通过 `path_target()` 写出，再让 `02-clean.qmd` 用 `path_source("01-import", ...)` 读。每个步骤就此向外**显式声明它对外发布什么**；私有输入保持私有。
+
+   这是一道**软边界**——qproj 保留这个灵活性，让你在确实需要时能绕过——但遵守约定才是让 pipeline 对未来 maintainer（或半年后的你）保持可读性的关键。
+   :::
+
 | 目录 | 角色 | 谁写 | 谁读 | `clean = TRUE` 时 |
 |---|---|---|---|---|
 | `data/<step>/` | 本步骤产出 | 仅本步骤 | 后续步骤通过 `path_source` | **被擦掉** |
@@ -205,6 +216,31 @@ path_data     <- here::here(path_raw, paste0("d", params$name))  # 字符串
 函数定义里 `clean = TRUE` 是默认，但模板里覆盖成了 `clean = FALSE`。
 这不矛盾：从函数视角看，显式调用通常是想要 fresh state；从模板视角看，交互开发期间反复渲染不该丢上一次的部分产出。
 正式重跑时手动改一下模板那行即可。
+
+## 同步策略：git 管代码，网盘管输入，派生数据从不同步
+
+`data/` 整棵子树被 git 排除——通常太大，框架自身在 `.gitignore` 里写好了对应规则（`R/create.R::proj_use_workflow()`）。git/GitHub 因此只承担代码、vignette、README、`DESCRIPTION` 这些每次只改几行的部分。`data/` 本身走另一条通道。
+
+推荐切分：
+
+- **同步** `data/00-raw/`——整个输入区，包含 `d00-resource` 和每个 `d<step>/`——通过网盘（OneDrive、Google Drive、Dropbox、NextCloud 等）。这些是手放进来的输入，必须在每个成员的机器上 byte-identical。
+- **不同步** `data/[01-99]*/`——各步骤的产出目录。每个成员在本地针对已同步的 `data/00-raw/` 重跑工作流，自己生成。
+
+"不同步派生数据"不只是省带宽——它是**一等公民级别的 reproducibility 验证手段**。成员独立从同一份 raw 重跑每一步，项目中期或末期任何时候，团队都能对比各人的 `data/<step>/` 产出：
+
+- 一致 → 该步骤在不同机器上都是 reproducible 的。
+- 不一致 → 还存在没被消灭的不确定性来源（遗漏的随机种子、包版本漂移、OS 工具差异），必须先定位修掉，结果才可信。
+
+对科研来说，这才是真正有意义的 reproducibility：不是"原作者自己能重跑通"，而是"团队里任何成员、从同一份 raw 起跑都得到完全一致的数字和图"。
+
+这套做法的前置纪律：每个用到随机性的 chunk 都在 `.qmd` 文件开头设固定 seed。用 [renv](https://rstudio.github.io/renv/) 锁定包版本是更进一步的做法，但多数团队留到项目末期打 Docker 时才上 renv——日常工作里 renv 频繁重新解析的成本，会超过它带来的边际 reproducibility 收益。
+
+::: callout-warning
+## 两条实操 caveat
+
+- **大文件。** 几十 GB 的 fastq / bam / 模型文件在消费级云盘上同步很难——带宽、断点续传、配额都会卡。这类数据走 institutional 存储、S3 或 `rsync`，并在项目根的 `README.md` 里写清楚获取方式，**不要**依赖同步盘。
+- **敏感数据。** 病人数据、未发表测序数据，以及任何受 IRB / 伦理委员会 / 数据保护协议管辖的数据，通常**完全**不能放在消费级云盘上。在选同步方式之前，先确认合规规则——这一步选错，工作流上的便利会立刻变成合规事故。
+:::
 
 ## 时间方向校验
 

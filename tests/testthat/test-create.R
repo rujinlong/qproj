@@ -7,7 +7,7 @@
 
   test_that("proj_create() works", {
 
-    localdir <- fs::path(tempdir, "proj-01")
+    localdir <- fs::path(tempdir, "proj01")
 
     # capture output
     expect_no_error(
@@ -38,7 +38,7 @@
 
   test_that("proj_use_workflow() works", {
 
-    localdir <- fs::path(tempdir, "proj-02")
+    localdir <- fs::path(tempdir, "proj02")
     fs::dir_create(localdir)
     withr::local_dir(localdir)
 
@@ -64,7 +64,7 @@
 
   test_that("proj_create() applies fields and protects existing directories", {
 
-    custom_path <- fs::path(tempdir, "proj-03")
+    custom_path <- fs::path(tempdir, "proj03")
 
     expect_no_error(
       proj_create(
@@ -77,7 +77,7 @@
     expect_identical(desc_obj$get("Title")[[1]], "Custom Title")
     expect_identical(desc_obj$get("Version")[[1]], "9.9.9")
 
-    occupied <- fs::path(tempdir, "proj-occupied")
+    occupied <- fs::path(tempdir, "projOccupied")
     fs::dir_create(occupied)
     fs::file_create(fs::path(occupied, "existing.txt"))
 
@@ -87,19 +87,56 @@
     )
 
     expect_error(
-      proj_create(fs::path(tempdir, "proj-04"), fields = list("not_named")),
+      proj_create(fs::path(tempdir, "proj04"), fields = list("not_named")),
       "`fields` must be a named list"
     )
 
-    expect_false(fs::dir_exists(fs::path(tempdir, "proj-04")))
+    expect_false(fs::dir_exists(fs::path(tempdir, "proj04")))
 
-    file_path <- fs::path(tempdir, "proj-file")
+    file_path <- fs::path(tempdir, "projFile")
     fs::file_create(file_path)
 
     expect_error(
       proj_create(path = file_path),
       "already exists and is not a directory"
     )
+
+  })
+
+  test_that("proj_create() rejects invalid R package names", {
+
+    # hyphen not allowed
+    expect_error(
+      proj_create(fs::path(tempdir, "my-class-project")),
+      "not a valid R package name"
+    )
+
+    # starts with digit
+    expect_error(
+      proj_create(fs::path(tempdir, "1foo")),
+      "not a valid R package name"
+    )
+
+    # ends with dot
+    expect_error(
+      proj_create(fs::path(tempdir, "foo.")),
+      "not a valid R package name"
+    )
+
+    # consecutive dots
+    expect_error(
+      proj_create(fs::path(tempdir, "foo..bar")),
+      "not a valid R package name"
+    )
+
+    # too short
+    expect_error(
+      proj_create(fs::path(tempdir, "a")),
+      "not a valid R package name"
+    )
+
+    # offending directory should not have been created
+    expect_false(fs::dir_exists(fs::path(tempdir, "my-class-project")))
 
   })
 

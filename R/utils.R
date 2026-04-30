@@ -26,6 +26,14 @@ sort_files <- function(files, first, last) {
   unique(c(files_first, files_remainder, files_last, files_readme))
 }
 
+# CRAN R package name rules: starts with a letter, ends with a letter or digit,
+# contains only ASCII letters, digits and dots, no consecutive dots, length >= 2.
+is_valid_pkg_name <- function(name) {
+  nchar(name) >= 2 &&
+    grepl("^[A-Za-z][A-Za-z0-9.]*[A-Za-z0-9]$", name) &&
+    !grepl("\\.\\.", name)
+}
+
 pui_done <- function(x, .envir = parent.frame()) cli::cli_alert_success(x, .envir = .envir)
 pui_info <- function(x, .envir = parent.frame()) cli::cli_alert_info(x, .envir = .envir)
 pui_oops <- function(x, .envir = parent.frame()) cli::cli_alert_danger(x, .envir = .envir)

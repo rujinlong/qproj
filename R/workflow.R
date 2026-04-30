@@ -56,6 +56,15 @@ use_qmd <- function(name, path_proj = "analyses",
   )
 
   name <- tools::file_path_sans_ext(name)
+
+  if (grepl("^00-", name)) {
+    cli::cli_abort(c(
+      "{.val {name}} starts with the reserved {.val 00-} prefix.",
+      "i" = "qproj reserves {.val 00-} for the framework's {.code data/00-raw/} input region.",
+      "i" = "Start your own steps at {.val 01-} or higher (e.g. {.code use_qmd(\"01-import\")})."
+    ))
+  }
+
   filename <- glue::glue("{name}.qmd")
   uuid <- uuid::UUIDgenerate()
 
@@ -103,9 +112,6 @@ proj_workflow_config <- function(path_proj) {
     return(NULL)
   }
 
-  pui_info("Reading workflow configuration from {path_yml}")
-  config <- yaml::read_yaml(path_yml)
-
-  config
+  yaml::read_yaml(path_yml)
 }
 

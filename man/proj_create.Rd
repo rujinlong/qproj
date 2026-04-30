@@ -4,12 +4,16 @@
 \alias{proj_create}
 \title{Create project}
 \usage{
-proj_create(path, fields = list())
+proj_create(path, fields = list(), rstudio = TRUE)
 }
 \arguments{
 \item{path}{\code{character} path to the new project directory.}
 
 \item{fields}{\code{list} of additional fields to set in \code{DESCRIPTION}.}
+
+\item{rstudio}{\code{logical} whether to also create a minimal \code{.Rproj} file
+so RStudio / Positron treat the directory as a project. Defaults to
+\code{TRUE}.}
 }
 \value{
 Invisible \code{character} path to the created project, called for

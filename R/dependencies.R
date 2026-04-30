@@ -110,10 +110,18 @@ check_deps <- function(path = usethis::proj_get()) {
 
   file_desc <- fs::path(path, "DESCRIPTION")
 
-  # use a diaper to absorb dependencies() output
-  x <- utils::capture.output(deps <- renv::dependencies(path = path))
+  if (!fs::file_exists(file_desc)) {
+    cli::cli_abort(c(
+      "No {.file DESCRIPTION} found in {.path {path}}.",
+      "i" = "Run {.fn proj_create} first, or pass {.arg path} pointing at an existing project."
+    ))
+  }
 
-  # split according to DESCRIPTION
+  deps <- suppressMessages(
+    renv::dependencies(path = path, quiet = TRUE, progress = FALSE)
+  )
+
+  # Source == DESCRIPTION rows are the declared deps; the rest are detected from code
   detected <- unique(deps[deps[["Source"]] != file_desc, "Package", drop = TRUE])
   declared <- unique(deps[deps[["Source"]] == file_desc, "Package", drop = TRUE])
 

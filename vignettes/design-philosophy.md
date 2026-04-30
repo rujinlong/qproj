@@ -129,6 +129,25 @@ Three observations:
     asymmetry is intentional: raw inputs typically need normalization
     before joining the pipeline, not naked passing-through.
 
+    > [!WARNING]
+    >
+    > ### Anti-pattern: reading another step’s `path_data` directly
+    >
+    > Nothing prevents `02-clean.qmd` from reaching across the boundary
+    > with `here::here(path_raw, "d01-import", "raw.fastq")`. The path
+    > resolves and the file is reachable. Do not do this.
+    >
+    > The right move is to let `01-import.qmd` write the data (raw or
+    > normalized) via `path_target()`, then have `02-clean.qmd` read it
+    > via `path_source("01-import", ...)`. Each step then declares
+    > **what it publishes** as its public surface; private inputs stay
+    > private.
+    >
+    > This is a soft boundary — qproj keeps it loose so you retain
+    > flexibility when you genuinely need to bypass it, but the
+    > convention is what makes the pipeline readable to a future
+    > maintainer (or to you, six months later).
+
 | Directory | Role | Who writes | Who reads | On `clean = TRUE` |
 |----|----|----|----|----|
 | `data/<step>/` | Step output | Current step only | Downstream steps via `path_source` | **Wiped** |
@@ -260,6 +279,62 @@ standpoint, an explicit call usually wants a fresh state; from the
 template’s standpoint, interactive iterative renders should not throw
 away partial outputs. Flip the template line manually for production
 runs.
+
+## Syncing strategy: git for code, drive for inputs, never sync derived
+
+The `data/` tree is excluded from git: it’s typically too large, and the
+framework writes the corresponding `.gitignore` rule itself
+(`R/create.R::proj_use_workflow()`). git/GitHub therefore carries only
+the code, vignettes, READMEs, and `DESCRIPTION` — the parts that change
+one keystroke at a time. The `data/` itself flows through a different
+channel.
+
+Recommended split:
+
+- **Sync** `data/00-raw/` — the entire input region, including
+  `d00-resource` and every `d<step>/` — via cloud storage (OneDrive,
+  Google Drive, Dropbox, NextCloud, …). These are files placed by hand;
+  they must be byte-identical across team members’ machines.
+- **Don’t sync** `data/[01-99]*/` — every step’s output directory. Each
+  member regenerates them locally by re-rendering the workflow against
+  the synced `data/00-raw/`.
+
+The “don’t sync derived” half is not just to save bandwidth — it is a
+**first-class reproducibility checkpoint**. Members independently
+re-derive every step from the same raw inputs, and at any point during
+or near the end of a project the team can compare each member’s
+`data/<step>/` outputs:
+
+- identical → that step is reproducible across machines.
+- divergent → there is an unfixed source of nondeterminism (a forgotten
+  seed, package-version skew, OS-specific tooling) that must be tracked
+  down before the result is trustworthy.
+
+For research, this is the form of reproducibility that actually matters:
+not “the original author can re-run it” but “anyone on the team gets the
+same numbers and figures from the same raw data.”
+
+The discipline this assumes: every chunk that uses randomness sets a
+fixed seed at the top of its `.qmd` file. Pinning package versions via
+[renv](https://rstudio.github.io/renv/) is the logical next step, but
+most teams reserve it for end-of-project Docker bundling rather than
+daily work, where the cost of frequent re-resolves outweighs the
+marginal reproducibility gain.
+
+> [!WARNING]
+>
+> ### Two practical caveats
+>
+> - **Large files.** Multi-GB fastq / bam / model files do not sync well
+>   over consumer cloud — bandwidth, partial-resume reliability, and
+>   quota all bite. Keep these on institutional storage, S3, or `rsync`,
+>   and document the retrieval recipe in the project’s top-level
+>   `README.md` instead of relying on the sync drive.
+> - **Sensitive data.** Patient data, unpublished sequencing, and
+>   anything covered by IRB / ethics / DPA agreements typically cannot
+>   live on consumer cloud at all. Confirm the data-governance rules
+>   **before** picking a sync mechanism — the wrong default here turns a
+>   workflow convenience into a compliance incident.
 
 ## Time-direction check
 
