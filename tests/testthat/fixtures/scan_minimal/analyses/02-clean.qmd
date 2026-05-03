@@ -1,0 +1,40 @@
+---
+title: "02-clean"
+params:
+  name: "02-clean"
+---
+
+```{r}
+#| label: setup
+#| include: false
+path_target <- qproj::proj_path_target(params$name)
+path_source <- qproj::proj_path_source(params$name)
+path_raw <- path_source("00-raw")
+path_resource <- here::here(path_raw, "d00-resource")
+path_data <- here::here(path_raw, paste0("d", params$name))
+```
+
+```{r}
+#| label: clean
+library(dplyr)
+seqs <- readr::read_csv(path_source("01-import", "seqs.csv"))
+
+# Anti-pattern: this should normally go through path_source.
+# We intentionally include it to verify bypass_access detection.
+raw_fastq <- here::here(path_raw, "d01-import", "raw.fastq")
+
+# A commented-out path_source() call MUST NOT be detected as a real edge.
+# Was once: path_source("nonexistent-step", "ghost.csv")
+
+# Real call into a locally-defined R/qc.R function (literal args).
+cleaned <- qc_filter(seqs$x, threshold = 0.05, method = "median")
+readr::write_csv(data.frame(x = cleaned), path_target("clean.csv"))
+```
+
+```{r}
+#| label: db-write
+# Open a SQLite connection in this step's data directory and persist a table.
+con <- DBI::dbConnect(RSQLite::SQLite(), path_target("db.sqlite"))
+DBI::dbWriteTable(con, "raw_seqs", data.frame(x = cleaned))
+DBI::dbDisconnect(con)
+```

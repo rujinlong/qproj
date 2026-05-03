@@ -1,0 +1,14 @@
+---
+title: "README"
+params:
+  name: "README"
+---
+
+```{r}
+#| label: setup
+#| include: false
+path_target <- qproj::proj_path_target(params$name)
+path_source <- qproj::proj_path_source(params$name)
+```
+
+This is a minimal qproj fixture used by `test-scan_graph.R`. README is rendered last.

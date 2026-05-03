@@ -1,0 +1,43 @@
+---
+title: "03-analyze"
+params:
+  name: "03-analyze"
+---
+
+```{r}
+#| label: setup
+#| include: false
+path_target <- qproj::proj_path_target(params$name)
+path_source <- qproj::proj_path_source(params$name)
+path_raw <- path_source("00-raw")
+path_resource <- here::here(path_raw, "d00-resource")
+path_data <- here::here(path_raw, paste0("d", params$name))
+```
+
+```{r}
+#| label: analyze
+library(dplyr)
+clean <- readr::read_csv(path_source("02-clean", "clean.csv"))
+
+# Use a project-level shared resource.
+ref <- readr::read_tsv(file.path(path_resource, "reference.tsv"))
+
+# AMBIGUOUS: target step is a variable, not a string literal.
+prev_step <- "02-clean"
+also <- readr::read_csv(path_source(prev_step, "extra.csv"))
+
+# Locally-defined R/qc.R function with one literal arg.
+clean$x <- qc_norm(clean$x, method = "median")
+
+result <- dplyr::left_join(clean, ref, by = "x")
+saveRDS(result, path_target("results.rds"))
+```
+
+```{r}
+#| label: db-read
+# Open the SQLite written by 02-clean and run a JOIN.
+con <- DBI::dbConnect(RSQLite::SQLite(), path_source("02-clean", "db.sqlite"))
+joined <- DBI::dbGetQuery(con, "SELECT r.x FROM raw_seqs r JOIN ref_lookup l ON r.x = l.x")
+DBI::dbExecute(con, "INSERT INTO audit_log (step, n) VALUES ('03-analyze', 1)")
+DBI::dbDisconnect(con)
+```

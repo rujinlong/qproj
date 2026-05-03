@@ -1,0 +1,29 @@
+---
+title: "01-import"
+params:
+  name: "01-import"
+---
+
+```{r}
+#| label: setup
+#| include: false
+path_target <- qproj::proj_path_target(params$name)
+path_source <- qproj::proj_path_source(params$name)
+path_raw <- path_source("00-raw")
+path_resource <- here::here(path_raw, "d00-resource")
+path_data <- here::here(path_raw, paste0("d", params$name))
+```
+
+```{r}
+#| label: packages
+library(dplyr)
+library(readr)
+```
+
+```{r}
+#| label: import
+# Read raw files from path_data; write canonical seqs + metadata.
+files <- list.files(path_data)
+write_csv(data.frame(x = 1), path_target("seqs.csv"))
+write_tsv(data.frame(y = 2), path_target("metadata.tsv"))
+```

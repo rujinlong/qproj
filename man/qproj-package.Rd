@@ -33,6 +33,12 @@ A lightweight framework for Quarto-based analysis workflows.
 \item \code{\link[=proj_install_deps]{proj_install_deps()}}: Install all dependencies from DESCRIPTION via pak.
 }
 }
+
+\subsection{Advanced (AI-assisted workflows)}{
+\itemize{
+\item \code{\link[=proj_scan_graph]{proj_scan_graph()}}: Static dependency-graph scanner for AI assistants.
+}
+}
 }
 \seealso{
 Useful links:

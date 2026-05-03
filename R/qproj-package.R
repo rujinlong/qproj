@@ -21,4 +21,8 @@
 #' - [proj_update_deps()]: Update DESCRIPTION with detected dependencies.
 #' - [proj_install_deps()]: Install all dependencies from DESCRIPTION via pak.
 #'
+#' ## Advanced (AI-assisted workflows)
+#'
+#' - [proj_scan_graph()]: Static dependency-graph scanner for AI assistants.
+#'
 "_PACKAGE"

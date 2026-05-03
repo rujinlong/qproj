@@ -1,0 +1,119 @@
+---
+title: "Knowledge graph for AI assistants"
+format:
+  gfm: default
+vignette: >
+  %\VignetteIndexEntry{Knowledge graph for AI assistants}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+---
+
+`proj_scan_graph()` is an **advanced feature** for users who collaborate with AI coding assistants (Claude Code, Gemini CLI, etc.) on qproj projects. Most users will never need it.
+
+## Why it exists
+
+qproj's step-to-step dependencies are not visible to general-purpose code analyzers: `path_source("01-import")` is a string argument, not a symbol reference, and the data flow happens through the file system rather than function calls. AI assistants therefore have to read every `.qmd` file in a workflow to answer simple questions like "what does step 03 depend on?". On a 10-step workflow this can burn 50,000+ tokens per session before any real work begins.
+
+`proj_scan_graph()` solves this by statically scanning all `.qmd` files in a workflow once and emitting a compact, machine-readable graph that AI assistants can consume in a single read.
+
+## One-line use
+
+From the project root:
+
+``` r
+qproj::proj_scan_graph()
+```
+
+This writes three files into `.qproj/graph/`:
+
+| File | Reader | Purpose |
+|------|--------|---------|
+| `qproj-graph.json` | AI assistants | Full graph: nodes, edges, evidence, warnings |
+| `QPROJ_GRAPH_REPORT.md` | AI assistants (entry point) | < 2 KB navigation summary |
+| `qproj-graph.html` | Humans | Self-contained interactive `visNetwork` view |
+
+## What the scanner detects
+
+The scanner runs three layers (all on by default; control via `scan = c("step", "R", "db")`):
+
+### Step layer — workflow file dependencies
+
+| Source pattern | Recorded as |
+|---|---|
+| `path_source("01-import", "x.csv")` | `reads_from` edge, `EXTRACTED` |
+| `path_source(prev_step, ...)` (variable) | `reads_from` edge, `AMBIGUOUS` + warning |
+| `path_target("clean.csv")` | declared output |
+| `here::here(path_raw, "d01-import", ...)` from another step | `bypass_access` edge + anti-pattern warning |
+| `library(pkg)` and `pkg::fn` | step-level R package dependencies |
+
+### R layer — calls into your project's `R/*.R`
+
+Each `.qmd` setup chunk runs `devtools::load_all()`, which silently exposes every `R/*.R` function, but most steps only use a handful. The R layer makes that subset visible:
+
+| Source pattern | Recorded as |
+|---|---|
+| `qc_filter(threshold = 0.05)` (qc_filter defined in `R/qc.R`) | `uses_function` edge to `fn:qc_filter`; literal scalar args captured |
+| `<your-pkg-name>::qc_filter(...)` | same as above |
+| `R/qc.R` defines `qc_helper()` but no `.qmd` calls it | `unused = TRUE` on the `fn:qc_helper` node |
+
+### DB layer — DBI/SQLite tables (cross-`.qmd` shared state)
+
+The file-level `path_source` view sees only "they share the same `.sqlite` file". The DB layer goes one level deeper and tracks **which tables** each step writes vs. reads:
+
+| Source pattern | Recorded as |
+|---|---|
+| `DBI::dbWriteTable(con, "raw_seqs", df)` | `writes_table` edge to `tbl:raw_seqs`, `EXTRACTED` |
+| `DBI::dbReadTable(con, "raw_seqs")` / `dplyr::tbl(con, "raw_seqs")` | `reads_table` edge from `tbl:raw_seqs`, `EXTRACTED` |
+| `DBI::dbGetQuery(con, "SELECT * FROM raw_seqs JOIN ref_lookup ...")` | both `raw_seqs` and `ref_lookup` recorded as reads, `INFERRED` (regex) |
+| `DBI::dbExecute(con, "INSERT INTO audit_log VALUES (?)")` | `audit_log` recorded as write, `INFERRED` |
+| `con <- DBI::dbConnect(SQLite(), path_target("db.sqlite"))` | binds `con` → `<step>/db.sqlite`, attached to every later DBI call in the `.qmd` |
+
+SQL is **not** parsed at the column level. Only table names are extracted, via regex on `FROM` / `JOIN` / `INSERT INTO` / `UPDATE` / `DELETE FROM` / `CREATE TABLE` / `DROP TABLE`. Non-literal SQL or non-literal table names produce an `AMBIGUOUS_*` warning instead of silently being missed.
+
+The scan is purely static — no `.qmd` is rendered, no R code is executed. It uses `knitr::purl()` and `base::parse()` under the hood, so commented-out code and string-literal mentions are correctly ignored.
+
+## HTML viewer with three node types
+
+The interactive `qproj-graph.html` shows all three node types together:
+
+- **steps** as boxes (blue / green / orange)
+- **functions** as ellipses (purple, grey when unused)
+- **tables** as diamonds (teal)
+
+The viewer ships with a built-in `selectedBy` filter (top-right dropdown) so you can hide all functions or all tables to declutter when the graph gets dense.
+
+## Suggested `.gitignore`
+
+The HTML viewer is ~800 KB and easy to regenerate; commit only the JSON and Markdown so AI tooling can use them on every clone:
+
+```
+.qproj/graph/qproj-graph.html
+```
+
+## Optional: regenerate on every commit
+
+If you want the graph to stay in sync without thinking about it, add a Makefile target:
+
+```makefile
+.PHONY: graph
+graph:
+	Rscript -e 'qproj::proj_scan_graph()'
+```
+
+Then call `make graph` after structural changes. We deliberately do **not** install a git hook automatically — that is your environment to manage.
+
+## Selecting only some artifacts
+
+```r
+# Skip the HTML viewer (no visNetwork required)
+qproj::proj_scan_graph(formats = c("json", "md"))
+```
+
+## Required packages
+
+`proj_scan_graph()` lives in `Suggests`, not `Imports`. The first call may prompt you to install:
+
+- `knitr`, `rmarkdown`, `jsonlite` — always required
+- `visNetwork`, `htmlwidgets` — only if you keep `"html"` in `formats`
+
+These are not added to qproj's hard dependencies so that ordinary users pay nothing for a feature they may never use.

@@ -1,0 +1,6 @@
+Package: scanFixture
+Title: Minimal qproj fixture for scan_graph tests
+Version: 0.0.1
+Description: Used by tests/testthat/test-scan_graph.R; not loaded as a real package.
+License: GPL-3
+Encoding: UTF-8

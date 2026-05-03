@@ -1,6 +1,6 @@
 Package: qproj
 Title: Lightweight Framework for Quarto Analysis Workflows
-Version: 0.1.1
+Version: 0.1.4
 Authors@R:
   person("Jinlong", "Ru", role = c("aut", "cre"), email = "jinlong.ru@gmail.com")
 Description: A lightweight framework for Quarto-based analysis project
@@ -30,7 +30,12 @@ Imports:
     usethis
 Suggests:
     testthat (>= 3.0.0),
-    quarto
+    quarto,
+    knitr,
+    rmarkdown,
+    jsonlite,
+    visNetwork,
+    htmlwidgets
 Config/testthat/edition: 3
 VignetteBuilder: quarto
 SystemRequirements: Quarto command line tool

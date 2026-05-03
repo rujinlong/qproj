@@ -1,0 +1,22 @@
+---
+title: "99-publish"
+params:
+  name: "99-publish"
+---
+
+```{r}
+#| label: setup
+#| include: false
+path_target <- qproj::proj_path_target(params$name)
+path_source <- qproj::proj_path_source(params$name)
+path_raw <- path_source("00-raw")
+path_resource <- here::here(path_raw, "d00-resource")
+path_data <- here::here(path_raw, paste0("d", params$name))
+```
+
+```{r}
+#| label: publish
+library(rmarkdown)
+result <- readRDS(path_source("03-analyze", "results.rds"))
+saveRDS(result, path_target("report.rds"))
+```
