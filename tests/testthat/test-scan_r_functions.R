@@ -19,6 +19,20 @@ test_that("scan_r_functions() returns empty list when r_dir missing", {
   expect_identical(scan_r_functions(fs::path(fixture_root, "no-such-dir")), list())
 })
 
+test_that("scan_r_functions() skips top-level calls whose head is itself a call", {
+  tmp <- withr::local_tempdir()
+  r_dir <- fs::dir_create(fs::path(tmp, "R"))
+  writeLines(
+    c(
+      "(function(x) x)(5)",
+      "foo <- function(x) x"
+    ),
+    fs::path(r_dir, "weird.R")
+  )
+  fns <- scan_r_functions(r_dir)
+  expect_identical(vapply(fns, function(f) f$name, character(1)), "foo")
+})
+
 test_that("project_pkg_name() reads DESCRIPTION Package field", {
   expect_identical(project_pkg_name(fixture_root), "scanFixture")
 })

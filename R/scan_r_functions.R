@@ -46,7 +46,7 @@ as_function_record <- function(e, rel_file, line) {
   if (!is.call(e)) return(NULL)
 
   op <- tryCatch(as.character(e[[1L]]), error = function(...) NA_character_)
-  if (is.na(op)) return(NULL)
+  if (length(op) != 1L || is.na(op)) return(NULL)
 
   # Pattern 1: assignment whose RHS is a function() literal.
   if (op %in% c("<-", "=", "<<-") && length(e) == 3L) {

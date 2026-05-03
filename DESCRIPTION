@@ -1,6 +1,6 @@
 Package: qproj
 Title: Lightweight Framework for Quarto Analysis Workflows
-Version: 0.1.4
+Version: 0.1.5
 Authors@R:
   person("Jinlong", "Ru", role = c("aut", "cre"), email = "jinlong.ru@gmail.com")
 Description: A lightweight framework for Quarto-based analysis project
