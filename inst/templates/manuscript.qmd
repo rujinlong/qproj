@@ -1,0 +1,111 @@
+---
+title: "Manuscript title goes here"
+short-title: "Short running title"
+author:
+  - name: Jinlong Ru
+    email: jinlong.ru@tum.de
+    affiliations:
+      - ref: 1
+    attributes:
+      corresponding: true
+affiliations:
+  - id: 1
+    name: "Your Institute, Your University, City, Country"
+date: ""
+bibliography: references.bib
+keywords: ["keyword1", "keyword2"]
+params:
+  name: "{{{name}}}"
+execute:
+  echo: false
+  warning: false
+  message: false
+format:
+  pdf:
+    pdf-engine: xelatex
+    mainfont: "Times New Roman"
+    keep-tex: true
+    toc: false
+    template-partials:
+      - title.tex
+    include-in-header:
+      text: |
+        \usepackage{lineno}
+        \linenumbers
+        \usepackage[noblocks]{authblk}
+        \renewcommand*{\Authsep}{, }
+        \renewcommand*{\Authand}{, }
+        \renewcommand*{\Authands}{, }
+        \renewcommand\Affilfont{\small\itshape}
+  docx:
+    reference-doc: manuscript-template.docx
+    toc: false
+link-citations: true
+---
+
+```{r}
+#| label: params
+#| eval: !expr interactive()
+#| include: false
+params <- list(name = "{{{name}}}")
+```
+
+```{r}
+#| label: setup
+#| include: false
+#| message: false
+#| warning: false
+#| cache: false
+wd <- "{{{path_proj}}}"
+if (basename(getwd()) != wd) {
+    setwd(here::here(wd))
+}
+here::i_am(paste0(params$name, ".qmd"), uuid = "{{{uuid}}}")
+qproj::proj_create_dir_target(params$name, clean = FALSE)
+
+# convenience helpers
+path_target <- qproj::proj_path_target(params$name)
+path_source <- qproj::proj_path_source(params$name)
+path_raw <- path_source("00-raw")
+path_resource <- here::here(path_raw, "d00-resource")
+path_data <- here::here(path_raw, paste0("d", params$name))
+dir.create(path_raw, recursive = TRUE, showWarnings = FALSE)
+dir.create(path_data, recursive = TRUE, showWarnings = FALSE)
+dir.create(path_resource, recursive = TRUE, showWarnings = FALSE)
+```
+
+```{r}
+#| label: packages
+#| message: false
+#| warning: false
+#| cache: false
+suppressPackageStartupMessages({
+  library(here)
+  library(conflicted)
+  library(tidyverse)
+  library(data.table)
+  devtools::load_all()
+})
+conflicted::conflicts_prefer(
+  dplyr::filter,
+  dplyr::lag,
+  .quiet = TRUE
+)
+```
+
+# Abstract {.unnumbered}
+
+Write the abstract here.
+
+# Introduction
+
+# Results
+
+# Discussion
+
+# Methods
+
+# References {.unnumbered}
+
+::: {#refs}
+:::

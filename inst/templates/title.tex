@@ -1,0 +1,23 @@
+$if(title)$
+\title{$title$$if(thanks)$\thanks{$thanks$}$endif$}
+$endif$
+$if(subtitle)$
+\subtitle{$subtitle$}
+$endif$
+
+$for(by-author)$
+\author[$for(it.affiliations)$$it.id$$sep$,$endfor$$if(it.attributes.corresponding)$$if(it.affiliations)$,$endif$*$endif$]{$it.name.literal$}
+$endfor$
+
+$for(affiliations)$
+\affil[$it.id$]{$it.name$}
+$endfor$
+
+$for(by-author)$
+$if(it.attributes.corresponding)$
+$if(it.email)$
+\affil[*]{Corresponding author. Email: \href{mailto:$it.email$}{$it.email$}}
+$endif$
+$endif$
+$endfor$
+\date{}

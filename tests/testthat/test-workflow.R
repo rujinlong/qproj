@@ -55,6 +55,44 @@
 
     })
 
+    test_that("use_manuscript() scaffolds qmd + title.tex", {
+
+      expect_no_error(
+        use_manuscript("090-manuscript", path_proj = "analyses", open = FALSE)
+      )
+
+      qmd <- fs::path(localdir, "analyses", "090-manuscript.qmd")
+      tex <- fs::path(localdir, "analyses", "title.tex")
+      expect_true(fs::file_exists(qmd))
+      expect_true(fs::file_exists(tex))
+
+      # dual-format Quarto-canonical YAML with the author-block recipe
+      content <- readLines(qmd)
+      expect_true(any(grepl("template-partials", content)))
+      expect_true(any(grepl("authblk", content)))
+      expect_true(any(grepl("reference-doc", content)))
+      expect_true(any(grepl("keep-tex", content)))
+      # whisker substitution happened
+      expect_true(any(grepl('name: "090-manuscript"', content, fixed = TRUE)))
+
+      # title.tex partial is the verbatim pandoc-template (not whisker-mangled)
+      tex_content <- readLines(tex)
+      expect_true(any(grepl("\\affil", tex_content, fixed = TRUE)))
+
+      # idempotent on title.tex: a second call must not clobber it
+      writeLines(c(tex_content, "% sentinel"), tex)
+      expect_no_error(
+        use_manuscript("091-manuscript", path_proj = "analyses", open = FALSE)
+      )
+      expect_true(any(grepl("% sentinel", readLines(tex), fixed = TRUE)))
+
+      # sub-directory names are rejected
+      expect_error(
+        use_manuscript("foo/bar", path_proj = "analyses", open = FALSE),
+        "you cannot specify a sub-directory"
+      )
+    })
+
     test_that("proj_workflow_config() returns NULL when _qproj.yml absent", {
 
       # at this point analyses/ has no _qproj.yml yet
