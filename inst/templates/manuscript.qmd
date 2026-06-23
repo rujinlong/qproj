@@ -60,7 +60,7 @@ wd <- "{{{path_proj}}}"
 if (basename(getwd()) != wd) {
     setwd(here::here(wd))
 }
-here::i_am(paste0(params$name, ".qmd"), uuid = "{{{uuid}}}")
+here::i_am("{{{i_am_path}}}", uuid = "{{{uuid}}}")
 qproj::proj_create_dir_target(params$name, clean = FALSE)
 
 # convenience helpers

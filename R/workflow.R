@@ -68,10 +68,21 @@ use_qmd <- function(name, path_proj = "analyses",
   filename <- glue::glue("{name}.qmd")
   uuid <- uuid::UUIDgenerate()
 
+  # Anchor `here::i_am()` relative to the `analyses/` axis so a step placed in a
+  # sub-directory of analyses/ (e.g. path_proj = "analyses/manuscript") keeps
+  # `proj_path_*()` resolving to the shared analyses/data/ tree. For the default
+  # path_proj == "analyses" this is just the bare filename (unchanged behaviour).
+  here_subpath <- sub("^analyses/?", "", path_proj)
+  i_am_path <- if (nzchar(here_subpath)) file.path(here_subpath, filename) else filename
+
+  # use_template() does not create intermediate directories; ensure path_proj
+  # exists (e.g. analyses/manuscript/ when a step is placed in a sub-directory).
+  fs::dir_create(path_proj)
+
   usethis::use_template(
     "workflow.qmd",
     save_as = fs::path(path_proj, filename),
-    data = list(name = name, uuid = uuid, path_proj = path_proj),
+    data = list(name = name, uuid = uuid, path_proj = path_proj, i_am_path = i_am_path),
     ignore = ignore,
     open = open,
     package = "qproj"

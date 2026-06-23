@@ -6,7 +6,7 @@
 \usage{
 use_manuscript(
   name = "090-manuscript",
-  path_proj = "analyses",
+  path_proj = "analyses/manuscript",
   open = rlang::is_interactive(),
   ignore = FALSE
 )
@@ -16,7 +16,10 @@ use_manuscript(
 conventionally sort last, e.g. \code{"090-manuscript"} or \code{"99-manuscript"}.}
 
 \item{path_proj}{Project sub-directory to create the file in. Default
-\code{"analyses"}.}
+\code{"analyses/manuscript"} (the qproj convention: every manuscript lives in
+\verb{analyses/manuscript/}). The qmd's \code{here::i_am()} is anchored relative to the
+\verb{analyses/} axis, so \verb{proj_path_*()} keep resolving to the shared
+\verb{analyses/data/} tree regardless of the manuscript's sub-directory depth.}
 
 \item{open}{Whether to open the new file for editing. Defaults to interactive.}
 
@@ -44,8 +47,8 @@ source document with \verb{vpipe docx extract-template <your-style.docx> -o manu
 }
 \examples{
 \dontrun{
-  use_manuscript()                 # creates analyses/090-manuscript.qmd + title.tex
-  use_manuscript("99-manuscript")
+  use_manuscript()                 # creates analyses/manuscript/090-manuscript.qmd + title.tex
+  use_manuscript("99-manuscript")  # -> analyses/manuscript/99-manuscript.qmd
 }
 }
 \seealso{

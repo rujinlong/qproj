@@ -19,7 +19,10 @@
 #' @param name Manuscript step name (no extension, no sub-directory). Manuscripts
 #'   conventionally sort last, e.g. `"090-manuscript"` or `"99-manuscript"`.
 #' @param path_proj Project sub-directory to create the file in. Default
-#'   `"analyses"`.
+#'   `"analyses/manuscript"` (the qproj convention: every manuscript lives in
+#'   `analyses/manuscript/`). The qmd's `here::i_am()` is anchored relative to the
+#'   `analyses/` axis, so `proj_path_*()` keep resolving to the shared
+#'   `analyses/data/` tree regardless of the manuscript's sub-directory depth.
 #' @param open Whether to open the new file for editing. Defaults to interactive.
 #' @param ignore Whether to add the created files to `.Rbuildignore`.
 #'
@@ -29,11 +32,11 @@
 #'
 #' @examples
 #' \dontrun{
-#'   use_manuscript()                 # creates analyses/090-manuscript.qmd + title.tex
-#'   use_manuscript("99-manuscript")
+#'   use_manuscript()                 # creates analyses/manuscript/090-manuscript.qmd + title.tex
+#'   use_manuscript("99-manuscript")  # -> analyses/manuscript/99-manuscript.qmd
 #' }
 #' @export
-use_manuscript <- function(name = "090-manuscript", path_proj = "analyses",
+use_manuscript <- function(name = "090-manuscript", path_proj = "analyses/manuscript",
                            open = rlang::is_interactive(),
                            ignore = FALSE) {
 
@@ -53,10 +56,23 @@ use_manuscript <- function(name = "090-manuscript", path_proj = "analyses",
   filename <- glue::glue("{name}.qmd")
   uuid <- uuid::UUIDgenerate()
 
+  # qproj anchors `here` at the `analyses/` axis (so `proj_path_*()` resolve to
+  # analyses/data/). When the manuscript sits in a sub-directory of it (the
+  # default analyses/manuscript/), declare the qmd's path RELATIVE TO that axis
+  # in `here::i_am()` so the data tree stays shared instead of collapsing to
+  # <path_proj>/data/. For path_proj == "analyses" this is just the bare
+  # filename (unchanged behaviour).
+  here_subpath <- sub("^analyses/?", "", path_proj)
+  i_am_path <- if (nzchar(here_subpath)) file.path(here_subpath, filename) else filename
+
+  # use_template() does not create intermediate directories; ensure path_proj
+  # exists (notably the analyses/manuscript/ sub-directory on first scaffold).
+  fs::dir_create(path_proj)
+
   usethis::use_template(
     "manuscript.qmd",
     save_as = fs::path(path_proj, filename),
-    data = list(name = name, uuid = uuid, path_proj = path_proj),
+    data = list(name = name, uuid = uuid, path_proj = path_proj, i_am_path = i_am_path),
     ignore = ignore,
     open = open,
     package = "qproj"
