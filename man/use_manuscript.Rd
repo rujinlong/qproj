@@ -42,6 +42,14 @@ garbles author superscripts for anything beyond a single author. It is
 referenced by \verb{template-partials:} in the manuscript YAML and is copied
 verbatim (it uses pandoc \verb{$...$} template syntax, not whisker \code{{{ }}}).
 
+It also drops a minimal \verb{_quarto.yml} so the manuscript directory is its own
+Quarto project root. Manuscripts live under \verb{analyses/manuscript/}, inside the
+\verb{analyses/} Quarto project the analysis notebooks use; without this file Quarto
+walks up to \verb{analyses/_quarto.yml} and merges that project's metadata into the
+manuscript --- notably prepending its default \verb{author:} to the manuscript's own
+author list (the rendered byline then survives only by Quarto's name
+de-duplication, which is fragile across Quarto versions).
+
 After scaffolding, generate the Word \code{reference-doc} once from a styled
 source document with \verb{vpipe docx extract-template <your-style.docx> -o manuscript-template.docx}.
 }

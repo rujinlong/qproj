@@ -12,6 +12,14 @@
 #' referenced by `template-partials:` in the manuscript YAML and is copied
 #' verbatim (it uses pandoc `$...$` template syntax, not whisker `{{ }}`).
 #'
+#' It also drops a minimal `_quarto.yml` so the manuscript directory is its own
+#' Quarto project root. Manuscripts live under `analyses/manuscript/`, inside the
+#' `analyses/` Quarto project the analysis notebooks use; without this file Quarto
+#' walks up to `analyses/_quarto.yml` and merges that project's metadata into the
+#' manuscript --- notably prepending its default `author:` to the manuscript's own
+#' author list (the rendered byline then survives only by Quarto's name
+#' de-duplication, which is fragile across Quarto versions).
+#'
 #' After scaffolding, generate the Word `reference-doc` once from a styled
 #' source document with `vpipe docx extract-template <your-style.docx> -o
 #' manuscript-template.docx`.
@@ -89,6 +97,32 @@ use_manuscript <- function(name = "090-manuscript", path_proj = "analyses/manusc
     }
     fs::file_copy(title_src, title_dest)
     cli::cli_alert_success("Wrote author-block partial {.file {title_dest}}.")
+  }
+
+  # Isolate the manuscript as its own Quarto project root. Without a _quarto.yml
+  # here, Quarto walks up to the analyses/ project config (analyses/_quarto.yml:
+  # the analysis-notebook default author:, gfm, toc, cache) and merges it into the
+  # manuscript --- prepending that author: to the manuscript author list, so the
+  # rendered byline is correct only by Quarto's name de-dup (version-fragile).
+  # `render:` is scoped to the manuscript so a bare `quarto render` here does not
+  # sweep sibling files (supplementary/, archive/); explicit renders are unaffected.
+  quarto_dest <- fs::path(path_proj, "_quarto.yml")
+  if (fs::file_exists(quarto_dest)) {
+    cli::cli_alert_info("{.file {quarto_dest}} already exists; left untouched.")
+  } else {
+    writeLines(c(
+      "# qproj: make this manuscript its own Quarto project root so an ancestor",
+      "# _quarto.yml (e.g. the analyses/ analysis-notebook project --- default",
+      "# author:, gfm, toc, cache) is NOT merged into the manuscript. Without this,",
+      "# Quarto prepends that project's author: to the manuscript author list, and",
+      "# the rendered byline survives only by Quarto's name de-dup (version-fragile).",
+      "# The manuscript .qmd is self-contained (its own author / format / toc blocks).",
+      "project:",
+      "  type: default",
+      "  render:",
+      glue::glue("    - {filename}")
+    ), quarto_dest)
+    cli::cli_alert_success("Wrote Quarto project isolation {.file {quarto_dest}}.")
   }
 
   cli::cli_alert_info("Next: generate the Word {.code reference-doc} once from a styled source:")
