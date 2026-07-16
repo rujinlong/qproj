@@ -5,15 +5,24 @@
 \title{Scaffold a Quarto-canonical manuscript}
 \usage{
 use_manuscript(
-  name = "090-manuscript",
+  name = manuscript_default_name(),
   path_proj = "analyses/manuscript",
   open = rlang::is_interactive(),
   ignore = FALSE
 )
 }
 \arguments{
-\item{name}{Manuscript step name (no extension, no sub-directory). Manuscripts
-conventionally sort last, e.g. \code{"090-manuscript"} or \code{"99-manuscript"}.}
+\item{name}{Manuscript file stem (no extension, no sub-directory). Defaults to
+\verb{<project-code>-manuscript}, where the project code is derived from the
+enclosing project directory name (\code{p0101-BTEXvirome} -> \code{p0101},
+\code{p0075e2-CRCprophage} -> \code{p0075e2}). When the directory name has no
+code-shaped prefix (e.g. a generic project), it falls back to
+\code{"090-manuscript"}. The stem is deliberately STABLE across revisions: date
+and version stamps live only on the rendered products
+(\verb{<stem>-vYYMMDD.N-submission.docx} etc.), injected by the
+\code{manuscript-render} skill at render time --- so \code{here::i_am()},
+\verb{_quarto.yml}, the \verb{data/<name>/} target, and git history stay anchored to
+one unchanging filename.}
 
 \item{path_proj}{Project sub-directory to create the file in. Default
 \code{"analyses/manuscript"} (the qproj convention: every manuscript lives in
@@ -55,7 +64,8 @@ source document with \verb{vpipe docx extract-template <your-style.docx> -o manu
 }
 \examples{
 \dontrun{
-  use_manuscript()                 # creates analyses/manuscript/090-manuscript.qmd + title.tex
+  # In p0101-BTEXvirome/: creates analyses/manuscript/p0101-manuscript.qmd
+  use_manuscript()
   use_manuscript("99-manuscript")  # -> analyses/manuscript/99-manuscript.qmd
 }
 }

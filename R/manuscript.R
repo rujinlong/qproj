@@ -24,8 +24,17 @@
 #' source document with `vpipe docx extract-template <your-style.docx> -o
 #' manuscript-template.docx`.
 #'
-#' @param name Manuscript step name (no extension, no sub-directory). Manuscripts
-#'   conventionally sort last, e.g. `"090-manuscript"` or `"99-manuscript"`.
+#' @param name Manuscript file stem (no extension, no sub-directory). Defaults to
+#'   `<project-code>-manuscript`, where the project code is derived from the
+#'   enclosing project directory name (`p0101-BTEXvirome` -> `p0101`,
+#'   `p0075e2-CRCprophage` -> `p0075e2`). When the directory name has no
+#'   code-shaped prefix (e.g. a generic project), it falls back to
+#'   `"090-manuscript"`. The stem is deliberately STABLE across revisions: date
+#'   and version stamps live only on the rendered products
+#'   (`<stem>-vYYMMDD.N-submission.docx` etc.), injected by the
+#'   `manuscript-render` skill at render time --- so `here::i_am()`,
+#'   `_quarto.yml`, the `data/<name>/` target, and git history stay anchored to
+#'   one unchanging filename.
 #' @param path_proj Project sub-directory to create the file in. Default
 #'   `"analyses/manuscript"` (the qproj convention: every manuscript lives in
 #'   `analyses/manuscript/`). The qmd's `here::i_am()` is anchored relative to the
@@ -40,11 +49,13 @@
 #'
 #' @examples
 #' \dontrun{
-#'   use_manuscript()                 # creates analyses/manuscript/090-manuscript.qmd + title.tex
+#'   # In p0101-BTEXvirome/: creates analyses/manuscript/p0101-manuscript.qmd
+#'   use_manuscript()
 #'   use_manuscript("99-manuscript")  # -> analyses/manuscript/99-manuscript.qmd
 #' }
 #' @export
-use_manuscript <- function(name = "090-manuscript", path_proj = "analyses/manuscript",
+use_manuscript <- function(name = manuscript_default_name(),
+                           path_proj = "analyses/manuscript",
                            open = rlang::is_interactive(),
                            ignore = FALSE) {
 
@@ -132,4 +143,56 @@ use_manuscript <- function(name = "090-manuscript", path_proj = "analyses/manusc
   ))
 
   invisible(NULL)
+}
+
+# ── internal: derive the manuscript stem from the project code ────────────────
+
+#' Detect the project code from the enclosing project directory name
+#'
+#' Walks up from `start` to the first directory that contains a `DESCRIPTION`
+#' (the project root) and extracts the leading project code from its name:
+#' `p`, an optional class letter (`c`/`r`/`f`/`t`), a run of digits, and zero or
+#' more `e<digits>` derivative suffixes. Returns `NA_character_` when the name
+#' has no code-shaped prefix (e.g. a generic project directory), so callers can
+#' fall back gracefully.
+#'
+#' Examples of the mapping (directory name -> code):
+#' `p0101-BTEXvirome` -> `p0101`; `p0075e2-CRCprophage` -> `p0075e2`;
+#' `pc028e1e2-duckBiome` -> `pc028e1e2`; `pf102-DFG_chickenPhage` -> `pf102`;
+#' `my-analysis` -> `NA`.
+#'
+#' @param start Directory to start the upward search from. Defaults to the
+#'   current working directory.
+#' @return A length-1 character project code, or `NA_character_`.
+#' @noRd
+detect_project_code <- function(start = getwd()) {
+  root <- start
+  while (root != dirname(root)) {
+    if (fs::file_exists(fs::path(root, "DESCRIPTION"))) break
+    root <- dirname(root)
+  }
+  nm <- basename(root)
+  if (grepl("^p[a-z]?[0-9]{2,}", nm)) {
+    sub("^(p[a-z]?[0-9]+(e[0-9]+)*).*$", "\\1", nm)
+  } else {
+    NA_character_
+  }
+}
+
+#' Default manuscript stem: `<project-code>-manuscript`, else `090-manuscript`
+#'
+#' The canonical manuscript source keeps a STABLE name (no date, no version):
+#' version/date stamps live only on the rendered products
+#' (`<stem>-vYYMMDD.N-submission.docx` etc.), injected by the `manuscript-render`
+#' skill's `render.sh` at render time. A stable stem keeps `here::i_am()`,
+#' `_quarto.yml` `render:`, `params$name`'s `data/<name>/` target, and git
+#' history all anchored to one unchanging filename across revisions.
+#'
+#' @param start Directory to derive the project code from (see
+#'   [detect_project_code()]). Defaults to the current working directory.
+#' @return A length-1 character stem.
+#' @noRd
+manuscript_default_name <- function(start = getwd()) {
+  code <- detect_project_code(start)
+  if (is.na(code)) "090-manuscript" else paste0(code, "-manuscript")
 }

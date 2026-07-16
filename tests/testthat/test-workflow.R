@@ -93,6 +93,32 @@
       )
     })
 
+    test_that("detect_project_code / manuscript_default_name derive from project dir", {
+
+      tmp <- withr::local_tempdir()
+
+      proj <- fs::dir_create(fs::path(tmp, "p0101-BTEXvirome"))
+      fs::file_create(fs::path(proj, "DESCRIPTION"))
+      expect_equal(detect_project_code(proj), "p0101")
+      expect_equal(manuscript_default_name(proj), "p0101-manuscript")
+
+      # derivative project: the `e<n>` suffix stays in the code
+      deriv <- fs::dir_create(fs::path(tmp, "p0075e2-CRCprophage"))
+      fs::file_create(fs::path(deriv, "DESCRIPTION"))
+      expect_equal(detect_project_code(deriv), "p0075e2")
+      expect_equal(manuscript_default_name(deriv), "p0075e2-manuscript")
+
+      # a sub-directory resolves up to the project root's DESCRIPTION
+      sub <- fs::dir_create(fs::path(proj, "analyses", "manuscript"))
+      expect_equal(detect_project_code(sub), "p0101")
+
+      # no code-shaped prefix -> NA -> fall back to 090-manuscript
+      generic <- fs::dir_create(fs::path(tmp, "my-analysis"))
+      fs::file_create(fs::path(generic, "DESCRIPTION"))
+      expect_true(is.na(detect_project_code(generic)))
+      expect_equal(manuscript_default_name(generic), "090-manuscript")
+    })
+
     test_that("proj_workflow_config() returns NULL when _qproj.yml absent", {
 
       # at this point analyses/ has no _qproj.yml yet
