@@ -145,8 +145,19 @@ qproj 负责 resolver / submission / step+write discipline / manifest;vpipe 完�
   create_dir、set -e 下 assign-first、文件名误用告警);Rscript 实测 gitignore 输出正确。**driver `set -e` 陷阱**已
   在 qproj.sh 头部文档化:`input="$(path_source ..)"` 先赋值(command subst 失败被外层命令掩盖)。
   **未接线**:driver 如何定位 qproj.sh(`system.file("scripts/qproj.sh")` vs env)留待 B 阶段试点确定。
-- **B driver 归位试点**:挑 56 个重复里最痛的一组(如 `bin_metabat`/`fairy_coverage`),把一个真实项目的 `p<code>.slurm`
-  从 `~/vpipe/bin/` 搬进其 `analyses/`,改调 `${VPIPE_ROOT}/bin/assembly.slurm`(不靠 PATH),双模式验通。
+- **B driver 归位试点 ✅ 完成(2026-07-20,试点=pc047e3-HpyloriTcell,轻量归位)**:
+  `pc047e3.slurm`(291 行,10 subcmd metagenomics read-level 预处理)从 `~/vpipe/bin/` 搬入
+  `pc047e3-HpyloriTcell/analyses/`。改造:① `source "${VPIPEBIN}/00-config.sh"` → `VPIPE_ROOT="${VPIPE_ROOT:-$HOME/vpipe}";
+  source "${VPIPE_ROOT}/bin/00-config.sh"`(显式 immutable root,非 PATH;`VPIPEBIN` 从 `VPIPE_ROOT` 派生保兼容);
+  ② source qproj.sh(dev-checkout fallback,qproj 未装)+ `qproj_init --step pc047e3`。**中央 `~/vpipe/bin/pc047e3.slurm`
+  → warning shim 转发**(软过渡,候选 INV-ARCH-06)。调用方 `workflow/run_local.sh`:`PC` 指项目 driver、
+  `RAW`/`WORK` 硬编码 → `path_resource 01-fastq`/`path_target`(逐字节一致已验证)。**验证**:bash-n+shellcheck
+  零新 warning(SITE_LOCAL/GZ_C 是原 driver pre-existing);bash 双模式(项目内定位 ROOT/项目外 warning 不炸)+
+  **sbatch job 95**(`/var/spool/slurmd/.../slurm_script` 证 spool 执行,qproj_init warning=0 证显式 `--step`+cwd
+  绕过 spool 下 `BASH_SOURCE` 陷阱)+ shim 转发 全过。
+  ⚠ **pc047e3 特例**:它是 read-level 预处理(fastp/metaphlan/minimap2),**不调 `assembly.slurm`**——故本试点验证的是
+  L1 归位 + qproj.sh 接线 + `VPIPE_ROOT`(非 PATH),**未**覆盖计划原设想的 `${VPIPE_ROOT}/bin/assembly.slurm` mixed-runtime
+  修复(那需选一个调 assembly.slurm 的 binning driver 如 p0101 另做,留后续)。
 - **C run state 分离**:`path_run_state`(shared FS,Slurm 下 controller+compute 可见,**非** `/localscratch` 单节点);
   Nextflow driver 用 `cd $state/launch` + `NXF_CACHE_DIR` + `-log` + `-work-dir`,publishDir `mode:'copy'`,
   失败 `trap 'rm -rf $target' ERR`(MVP)/ staging→promote(可选 hardening)。
