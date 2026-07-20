@@ -148,7 +148,14 @@ proj_use_workflow <- function(path_proj = "analyses", git_ignore_data = TRUE) {
     ignores <- c(
       paste0(path_proj, "/data/*"),
       paste0(path_proj, "/tmp/"),
-      paste0("!", path_proj, "/data/README.md")
+      paste0("!", path_proj, "/data/README.md"),
+      # Bash / Nextflow driver artifacts (analyses/p<code>.slurm|.nf; integration plan
+      # dev/bash-nextflow-integration-plan.md L1). Nextflow work/cache and Slurm task
+      # scripts are never tracked; run-state under data/ is already covered above, but a
+      # driver may emit these anywhere under the workflow directory.
+      ".nextflow*",
+      paste0(path_proj, "/**/work/"),
+      ".command.*"
     )
     # Append only new lines so repeated calls don't pile up duplicates
     existing <- if (fs::file_exists(gitignore_path)) readLines(gitignore_path) else character(0)
