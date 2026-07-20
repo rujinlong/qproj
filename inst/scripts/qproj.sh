@@ -18,9 +18,10 @@
 #   path_source up f...     ->  $ROOT/data/$up/f...
 #   path_raw f...           ->  $ROOT/data/00-raw/d$STEP/f...     (this step's raw inputs)
 #   path_resource f...      ->  $ROOT/data/00-raw/d00-resource/f... (shared raw resources)
-#   path_run_state f...     ->  $ROOT/data/$STEP/run-state/f...   (NEW: shared-FS run state,
-#                               for Nextflow -work-dir / resume cache; NOT node-local
-#                               /localscratch — must survive cross-node + restart)
+#   path_run_state f...     ->  $ROOT/data/.run-state/$STEP/f...  (NEW: shared-FS run state,
+#                               a SIBLING of the step target so create_dir_target --clean /
+#                               ERR-trap cleanup never destroys it; for Nextflow work/cache/
+#                               history; NOT node-local /localscratch — survives cross-node+restart)
 #   create_dir_target [--clean]  ->  mkdir -p (and optionally empty) $ROOT/data/$STEP
 #
 # ── set -e trap (drivers run under vpipe's `set -euo pipefail`) ──
@@ -35,7 +36,10 @@
 # QPROJ_ROOT / QPROJ_STEP (overridable by exporting either before sourcing).
 
 # --- ROOT discovery: walk up until a dir has BOTH _quarto.yml AND data/ (the workflow
-#     root anchored by here::i_am on the analyses/ axis). Nearest match wins. ---
+#     root anchored by here::i_am on the analyses/ axis). Nearest match wins.
+# NOTE: resolves PHYSICAL ancestors (pwd -P). A driver located under a symlinked directory
+# (analyses/foo -> /elsewhere) searches from the physical target, so it may miss the logical
+# analyses/ root. Such a driver should pass `qproj_init --root <analyses>` explicitly. ---
 _qproj_find_root() {
     local d
     d="$(cd -- "${1:-.}" 2>/dev/null && pwd -P)" || return 1
@@ -57,12 +61,29 @@ _qproj_step_from_file() {
     printf '%s\n' "${base%.*}"
 }
 
+# --- a step must be a single, safe path component. This is a SAFETY gate, not cosmetics:
+#     create_dir_target --clean does `rm -rf $ROOT/data/$STEP`, so STEP="/" would wipe data/
+#     and STEP=".." would wipe $ROOT. Reject empty / "." / ".." / anything with a slash.
+_qproj_validate_step() {
+    case "${1:-}" in
+        ""|.|..) return 1 ;;
+        */*)     return 1 ;;
+        *)       return 0 ;;
+    esac
+}
+
 # qproj_init [--step-file <path>] [--root <dir>] [--step <name>]
 # Resolve QPROJ_ROOT (from --root, else existing env, else search up from --step-file's
 # dir, else CWD) and QPROJ_STEP (from --step, else --step-file basename, else existing env).
 qproj_init() {
     local step_file="" root_arg="" step_arg=""
     while [ $# -gt 0 ]; do
+        # each two-arg option must have its value present, else `$2` under `set -u`
+        # would kill the whole caller instead of returning a handleable error (rc=2).
+        case "$1" in
+            --step-file|--root|--step)
+                [ $# -ge 2 ] || { printf 'qproj_init: %s needs a value\n' "$1" >&2; return 2; } ;;
+        esac
         case "$1" in
             --step-file) step_file="$2"; shift 2 ;;
             --root)      root_arg="$2";  shift 2 ;;
@@ -96,13 +117,25 @@ qproj_init() {
         return 2
     fi
 
+    # e.g. a dotfile driver yielding empty STEP, or a caller-supplied "/" / ".." — reject
+    # before any path could feed create_dir_target --clean's rm -rf.
+    _qproj_validate_step "$QPROJ_STEP" || {
+        printf 'qproj_init: invalid STEP %s (need a single path component, not empty/./.. or with /)\n' \
+            "$QPROJ_STEP" >&2
+        return 2
+    }
+
     export QPROJ_ROOT QPROJ_STEP
 }
 
 # qproj_set_step <name> — override the current step id (a driver hosting several steps
 # calls this per subcommand so path_target/path_raw land in that step's directory).
 qproj_set_step() {
-    [ -n "${1:-}" ] || { printf 'qproj_set_step: need a step name\n' >&2; return 2; }
+    _qproj_validate_step "${1:-}" || {
+        printf 'qproj_set_step: invalid step %s (need a single path component, not empty/./.. or with /)\n' \
+            "${1:-}" >&2
+        return 2
+    }
     QPROJ_STEP="$1"; export QPROJ_STEP
 }
 
@@ -130,6 +163,9 @@ path_target() {
 }
 
 # path_source <upstream-step> [f...] -> $ROOT/data/<upstream>/f...
+# NOTE: this only COMPOSES the path; unlike the R proj_path_source it does NOT validate that
+# <upstream> is actually earlier in the workflow DAG (no render-config sort). Callers are
+# trusted to pass a real upstream step — the double-axis write discipline is advisory here.
 path_source() {
     _qproj_require_init path_source || return 1
     if [ $# -lt 1 ]; then
@@ -138,6 +174,12 @@ path_source() {
         return 2
     fi
     local up="$1"; shift
+    # An empty upstream would silently collapse to $ROOT/data/<file> (reading the data root);
+    # reject it rather than resolve a wrong path (R version at least warns on empty upstream).
+    if [ -z "$up" ]; then
+        printf 'path_source: upstream step is empty; pass a real step name (e.g. 00-raw)\n' >&2
+        return 2
+    fi
     # Cheap honesty guard: a file-looking first arg is almost surely a mistake.
     case "$up" in
         *.*) printf 'path_source: %s looks like a file, not a step; did you mean path_source <step> %s ?\n' \
@@ -158,13 +200,15 @@ path_resource() {
     _qproj_join "00-raw" "d00-resource" "$@"
 }
 
-# path_run_state [f...] -> $ROOT/data/$STEP/run-state/f...
-# Shared-FS run state for orchestrators (Nextflow -work-dir / NXF_CACHE_DIR / -log).
-# MUST be on a shared filesystem (visible to controller + compute), NOT /localscratch,
-# because Nextflow resume needs cross-node + cross-restart persistence (plan §C / D5).
+# path_run_state [f...] -> $ROOT/data/.run-state/$STEP/f...
+# Deliberately a SIBLING of the step target (under data/.run-state/), NOT data/$STEP/run-state/:
+# create_dir_target --clean wipes data/$STEP and a driver ERR trap may `rm -rf "$(path_target)"`,
+# either of which would destroy the -resume work/cache/history if run-state lived inside the
+# target. Keeping it outside the target's cleanup boundary preserves resume across retries.
+# (Still under data/ so the framework's data/* gitignore covers it.)
 path_run_state() {
     _qproj_require_init path_run_state || return 1
-    _qproj_join "$QPROJ_STEP" "run-state" "$@"
+    _qproj_join ".run-state" "$QPROJ_STEP" "$@"
 }
 
 # create_dir_target [--clean] — ensure (optionally empty) $ROOT/data/$STEP exists.
@@ -175,38 +219,54 @@ create_dir_target() {
     [ "${1:-}" = "--clean" ] && clean=1
     local dir; dir="$(_qproj_join "$QPROJ_STEP")"
     if [ "$clean" = 1 ] && [ -d "$dir" ]; then
-        rm -rf -- "$dir"
+        # Defence-in-depth (STEP is already validated): RESOLVE symlinks/.. via pwd -P, then
+        # rm only a STRICT descendant of $ROOT/data/. A plain glob can't do this — the pattern
+        # "$ROOT/data/"?* still matches "$ROOT/data/.." (?* = the two dots), which resolves to
+        # $ROOT. Normalising first guards against rm -rf of data/, $ROOT, or a hand-set
+        # QPROJ_STEP="..".
+        local _rp _dp
+        _rp="$(cd -- "$dir" && pwd -P)" || { printf 'create_dir_target: cannot resolve %s\n' "$dir" >&2; return 1; }
+        _dp="$(cd -- "$QPROJ_ROOT/data" && pwd -P)" || return 1
+        case "$_rp" in
+            "$_dp"/?*) rm -rf -- "$_rp" ;;
+            *) printf 'create_dir_target: refusing to clean %s (resolves to %s, not strictly under %s)\n' \
+                   "$dir" "$_rp" "$_dp" >&2
+               return 1 ;;
+        esac
     fi
     mkdir -p -- "$dir"
     printf '%s\n' "$dir"
 }
 
 # qproj_nf_prepare — route a Nextflow run's state onto the SHARED run-state tree
-# ($ROOT/data/$STEP/run-state/), never /localscratch: -resume needs the work dir, the
-# LevelDB cache AND the run history to survive across Slurm nodes + restarts, and a
-# compute-local work/cache silently breaks resume when the next attempt lands elsewhere.
+# (data/.run-state/$STEP/), never /localscratch: -resume needs the work dir, the session
+# cache AND the run history to survive across Slurm nodes + restarts, and a compute-local
+# work/cache silently breaks resume when the next attempt lands on another node.
 #
-# It creates run-state/{work,launch,log} and EXPORTS three variables:
-#   NXF_WORK        Nextflow work dir (= -work-dir default) -> shared FS
-#   QPROJ_NF_LOG    log path; pass to nextflow as `-log "$QPROJ_NF_LOG"`
-#   QPROJ_NF_LAUNCH launch dir; `cd` into it before `nextflow run` so `.nextflow/` (the
-#                   resume cache + history) also lands on shared FS. (Nextflow has NO
-#                   NXF_CACHE_DIR env var — the local LevelDB cache lives in <launch>/
-#                   .nextflow/, so the cd is what shares it — verified against Nextflow docs.)
+# EXPORTS (call it DIRECTLY, never `$(qproj_nf_prepare)` — a command-substitution subshell
+# would drop the exports, the same "source|grep drops exports" trap):
+#   NXF_WORK       Nextflow work dir (= -work-dir default)       -> shared FS
+#   NXF_CACHE_DIR  session cache + history (Nextflow >= 24.10)   -> shared FS
+#   QPROJ_NF_LOG   log path; pass as a GLOBAL flag: `nextflow -log "$QPROJ_NF_LOG" run ...`
 #
-# ⚠ Call it DIRECTLY, never `$(qproj_nf_prepare)` — command substitution runs it in a
-#   subshell, so the exports would be lost (the same "source|grep drops exports" trap).
-# Usage (driver keeps full control of nextflow flags):
+# NXF_CACHE_DIR (verified in Nextflow docs, introduced 24.10.0; spark runs 26.04) lets the
+# cache+history live on shared FS WITHOUT cd-ing into a launch dir — so the caller's CWD is
+# preserved and relative pipeline/input paths + the launch-dir nextflow.config still resolve.
+# (It must differ from the launch dir; it does — it's under data/.run-state/.) For Nextflow
+# < 24.10, fall back to cd-ing into a shared launch dir instead.
+#
+# Usage (driver keeps full control of nextflow flags; -log is GLOBAL, BEFORE `run`):
 #   qproj_init --step 022-humann
 #   qproj_nf_prepare
-#   ( cd "$QPROJ_NF_LAUNCH" && nextflow run pipeline.nf -log "$QPROJ_NF_LOG" -resume -profile spark ... )
-# Recommend publishDir mode:'copy' (not symlink into work) so outputs outlive work cleanup,
-# and a driver-side `trap 'rm -rf "$(path_target)"' ERR` for atomic-ish failure cleanup (MVP).
+#   nextflow -log "$QPROJ_NF_LOG" run pipeline.nf -resume -profile spark ...
+# Recommend publishDir mode:'copy' (not symlink into work) so outputs outlive work cleanup.
+# A driver ERR trap may `rm -rf "$(path_target)"` safely: run-state is a SIBLING
+# (data/.run-state/$STEP), not inside the target, so cleanup never destroys resume state.
 qproj_nf_prepare() {
     _qproj_require_init qproj_nf_prepare || return 1
-    local state; state="$(_qproj_join "$QPROJ_STEP" "run-state")"
-    mkdir -p "$state"/{work,launch,log}
+    local state; state="$(_qproj_join ".run-state" "$QPROJ_STEP")"
+    mkdir -p "$state"/{work,cache,log}
     export NXF_WORK="$state/work"                    # -work-dir default -> shared FS
-    export QPROJ_NF_LOG="$state/log/nextflow.log"    # caller: nextflow run ... -log "$QPROJ_NF_LOG"
-    export QPROJ_NF_LAUNCH="$state/launch"           # caller: cd here -> .nextflow/ cache+history shared
+    export NXF_CACHE_DIR="$state/cache"              # session cache + history (>=24.10) -> shared
+    export QPROJ_NF_LOG="$state/log/nextflow.log"    # caller: nextflow -log "$QPROJ_NF_LOG" run ...
 }
