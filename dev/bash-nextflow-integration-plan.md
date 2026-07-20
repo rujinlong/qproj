@@ -158,9 +158,15 @@ qproj 负责 resolver / submission / step+write discipline / manifest;vpipe 完�
   ⚠ **pc047e3 特例**:它是 read-level 预处理(fastp/metaphlan/minimap2),**不调 `assembly.slurm`**——故本试点验证的是
   L1 归位 + qproj.sh 接线 + `VPIPE_ROOT`(非 PATH),**未**覆盖计划原设想的 `${VPIPE_ROOT}/bin/assembly.slurm` mixed-runtime
   修复(那需选一个调 assembly.slurm 的 binning driver 如 p0101 另做,留后续)。
-- **C run state 分离**:`path_run_state`(shared FS,Slurm 下 controller+compute 可见,**非** `/localscratch` 单节点);
-  Nextflow driver 用 `cd $state/launch` + `NXF_CACHE_DIR` + `-log` + `-work-dir`,publishDir `mode:'copy'`,
-  失败 `trap 'rm -rf $target' ERR`(MVP)/ staging→promote(可选 hardening)。
+- **C run state 分离 ✅ 完成(2026-07-20)**:qproj.sh 加 `qproj_nf_prepare`——建 `run-state/{work,launch,log}` 并
+  **export** `NXF_WORK`(work→shared)、`QPROJ_NF_LOG`、`QPROJ_NF_LAUNCH`;driver 直接调用(⚠ 非 `$(...)`,否则子 shell
+  丢 export——单元测试实抓此坑)后 `( cd "$QPROJ_NF_LAUNCH" && nextflow -log "$QPROJ_NF_LOG" run pipeline.nf -resume ... )`。
+  **两处 flag 纠错(cli-experiment 实抓,均经 Context7/实跑核实)**:① **无 `NXF_CACHE_DIR`** 这个 env——Nextflow 本地
+  LevelDB cache + history 在 `<launch>/.nextflow/`,靠 `cd $launch` 落 shared(不是靠某 env);② `-log` 是 nextflow **global**
+  option,在 `run` **之前**(`nextflow -log X run ...`,非 `run ... -log X`)。**验证**:单元测试(直接调用 export 生效)+ **真实
+  minimal NF 实跑**(Java 21 via minced env):work/`.nextflow`(cache+history)/log 全落 run-state、publishDir `mode:'copy'`
+  → `path_target`、launch 下无默认 `./work`(反证 NXF_WORK 生效)。**建议(文档化,非强制)**:publishDir `mode:'copy'`(产物
+  outlive work cleanup) + driver 侧 `trap 'rm -rf "$(path_target)"' ERR`(MVP;staging→promote 可选 hardening)。
 - **D 版本契约**:vpipe 起统一 semver + 首个 "legacy baseline" release;生成 BOM;`vpipe.lock` + `vpipe contract check`;
   修 `current`/`latest` → digest/release pin。
 - **E ABI 收窄**:vpipe 暴露 `lib/vpipe/runtime-v1.sh` + `conf/public/*.config`,00-config/functions 降 private。

@@ -180,3 +180,33 @@ create_dir_target() {
     mkdir -p -- "$dir"
     printf '%s\n' "$dir"
 }
+
+# qproj_nf_prepare — route a Nextflow run's state onto the SHARED run-state tree
+# ($ROOT/data/$STEP/run-state/), never /localscratch: -resume needs the work dir, the
+# LevelDB cache AND the run history to survive across Slurm nodes + restarts, and a
+# compute-local work/cache silently breaks resume when the next attempt lands elsewhere.
+#
+# It creates run-state/{work,launch,log} and EXPORTS three variables:
+#   NXF_WORK        Nextflow work dir (= -work-dir default) -> shared FS
+#   QPROJ_NF_LOG    log path; pass to nextflow as `-log "$QPROJ_NF_LOG"`
+#   QPROJ_NF_LAUNCH launch dir; `cd` into it before `nextflow run` so `.nextflow/` (the
+#                   resume cache + history) also lands on shared FS. (Nextflow has NO
+#                   NXF_CACHE_DIR env var — the local LevelDB cache lives in <launch>/
+#                   .nextflow/, so the cd is what shares it — verified against Nextflow docs.)
+#
+# ⚠ Call it DIRECTLY, never `$(qproj_nf_prepare)` — command substitution runs it in a
+#   subshell, so the exports would be lost (the same "source|grep drops exports" trap).
+# Usage (driver keeps full control of nextflow flags):
+#   qproj_init --step 022-humann
+#   qproj_nf_prepare
+#   ( cd "$QPROJ_NF_LAUNCH" && nextflow run pipeline.nf -log "$QPROJ_NF_LOG" -resume -profile spark ... )
+# Recommend publishDir mode:'copy' (not symlink into work) so outputs outlive work cleanup,
+# and a driver-side `trap 'rm -rf "$(path_target)"' ERR` for atomic-ish failure cleanup (MVP).
+qproj_nf_prepare() {
+    _qproj_require_init qproj_nf_prepare || return 1
+    local state; state="$(_qproj_join "$QPROJ_STEP" "run-state")"
+    mkdir -p "$state"/{work,launch,log}
+    export NXF_WORK="$state/work"                    # -work-dir default -> shared FS
+    export QPROJ_NF_LOG="$state/log/nextflow.log"    # caller: nextflow run ... -log "$QPROJ_NF_LOG"
+    export QPROJ_NF_LAUNCH="$state/launch"           # caller: cd here -> .nextflow/ cache+history shared
+}
