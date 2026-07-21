@@ -26,8 +26,9 @@ release_path: "/home/allen/bioinfo/vpipe-releases/0.9.0+81b9b33"
 requires: ">=0.9,<1.0"
 
 # ---- 两个 digest(为何是两个见 §5)----
-bom_digest: "sha256:...."   # tier-1 内容寻址,确定性,tamper 检查
-env_digest: "sha256:...."   # tier-2 观测态,非确定性,仅供 drift 比对
+bom_digest: "sha256:...."   # 身份:tier-1 的 git object SHA,确定性
+tree_digest: "sha256:...."  # 完整性:物化树磁盘字节的哈希 —— 唯一能发现 release 被改过的
+env_digest: "sha256:...."   # 漂移:tier-2 观测态,非确定性
 
 # ---- 声明的契约面 ----
 # ⚠ 诚实边界:阶段 D 一律为 1 = "legacy baseline surface,尚未收窄"。
@@ -65,8 +66,14 @@ BOM 分三层证据,只有 tier-1 是确定性的:
 
 若单一 digest 同时覆盖 tier-1 + tier-2,则**同一个 commit 在不同日子重新物化会得到不同 digest** → digest 作为 tamper 检查彻底失效。故拆开:
 
-- `bom_digest` 只盖 tier-1(+tier-3)→ 确定性,**不匹配 = 树被篡改 = hard fail**
+- `bom_digest` 只盖 tier-1(+tier-3)→ 确定性,**不匹配 = lock 没有指向这个 release = hard fail**
+- `tree_digest` 盖**磁盘上的字节** → **不匹配 = release 被改过 = hard fail**
 - `env_digest` 只盖 tier-2 → **不匹配 = 环境漂移 = 默认 WARN**(附逐条 diff),`--strict` 才 fail
+
+> ⚠ **本节曾写「`bom_digest` 不匹配 = 树被篡改」,2026-07-21 由独立审计推翻并修正。**
+> `bom_digest` 的输入全部是**从 git 读出的 object SHA**,没有任何一位来自被解压的文件 ——
+> 它证明**身份**不证明**完整性**。实证:往已 pin 的 `bin/assembly.slurm` 追加一行,
+> `contract check` 七项全绿。故新增第三个 digest `tree_digest`(由磁盘字节算出)。
 
 默认不对 tier-2 漂移 hard fail 是刻意的:live 配置本就未 pin(硬约束禁改),`current` 会动。默认 fail 会让每个项目永久红灯,工具随即被绕过。
 

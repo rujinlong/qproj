@@ -16,6 +16,7 @@ fake_lock_fields <- function(release_path = "/store/0.9.0+abcdef1") {
     release_path     = release_path,
     requires         = ">=0.9,<1.0",
     bom_digest       = "sha256:beef",
+    tree_digest      = "sha256:f00d",
     env_digest       = "sha256:cafe",
     shell_api        = 1,
     nf_api           = 1,
