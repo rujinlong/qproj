@@ -72,9 +72,18 @@ vpipe_run <- function(args, what) {
   status <- attr(out, "status")
 
   if (!is.null(status) && status != 0L) {
+    # Report BOTH streams. `vpipe contract check` writes its findings to stdout and keeps
+    # stderr empty, so reporting only stderr produced an abort that said "failed (exit 1)"
+    # and nothing else -- discarding the diagnosis at the exact moment it is needed.
+    diagnostics <- c(
+      readLines(err, warn = FALSE),
+      if (length(out)) c("", as.character(out))
+    )
+    diagnostics <- diagnostics[nzchar(trimws(diagnostics))]
+
     cli::cli_abort(c(
       "{what} failed (exit {status}).",
-      "x" = paste(readLines(err, warn = FALSE), collapse = "\n"),
+      stats::setNames(diagnostics, rep("x", length(diagnostics))),
       "i" = "Command: {.code {bin} {paste(args, collapse = ' ')}}"
     ))
   }
