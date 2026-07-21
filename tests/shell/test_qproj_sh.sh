@@ -223,5 +223,94 @@ else
   is "qproj_init's failure rc surfaces through the bootstrap" "$RC" "1"
 fi
 
+
+# ---------------------------------------------------------------- vpipe.lock resolver --
+#
+# The resolver reads YAML with an anchored grep because it runs in the batch hot path and
+# must not depend on any external program (shelling out to the vpipe CLI would put the
+# resolver back on PATH -- the mixed-runtime dependency the pin exists to remove). That is
+# only defensible because it is FAIL-CLOSED, so most of these tests assert on refusals
+# rather than on successes. A resolver that guesses produces a job that runs, emits
+# plausible output, and never reveals it used the wrong vpipe.
+
+printf '\n-- vpipe.lock resolver --\n'
+
+# fixture: a release tree that looks materialised, and a lock naming it
+REL="$TMP/store/0.9.0+abcdef1"
+mkdir -p "$REL/bin"; : > "$REL/bin/00-config.sh"
+
+mklock() {  # mklock <file> <release_path> [extra lines...]
+  local f="$1" rp="$2"; shift 2
+  { printf 'lock_version: 1\n'
+    printf 'resolved_version: "0.9.0"\n'
+    printf 'git_commit: "abcdef1234567890abcdef1234567890abcdef12"\n'
+    printf 'release_path: "%s"\n' "$rp"
+    for extra in "$@"; do printf '%s\n' "$extra"; done
+  } > "$f"
+}
+
+LOCK="$TMP/vpipe.lock"; mklock "$LOCK" "$REL"
+
+sh_run "$INIT >/dev/null; QPROJ_VPIPE_LOCK='$LOCK' qproj_vpipe_root"
+is "resolves release_path from a well-formed lock" "$OUT" "$REL"
+
+sh_run "$INIT >/dev/null; qproj_vpipe_lock_path"
+is "lock defaults to \$QPROJ_ROOT/vpipe.lock" "$OUT" "$ROOT/vpipe.lock"
+
+sh_run "$INIT >/dev/null; QPROJ_VPIPE_LOCK='$LOCK' qproj_vpipe_lock_path"
+is "QPROJ_VPIPE_LOCK overrides the default location" "$OUT" "$LOCK"
+
+sh_run "$INIT >/dev/null; QPROJ_VPIPE_LOCK='$LOCK' qproj_vpipe_root >/dev/null; echo \"\$QPROJ_VPIPE_LOCK\""
+is "the resolved lock is exported for children" "$OUT" "$LOCK"
+
+# -- refusals: each of these must abort rather than produce a path --
+
+sh_run "$INIT >/dev/null; QPROJ_VPIPE_LOCK='$TMP/absent.lock' qproj_vpipe_root"
+is  "missing lock aborts"                       "$RC"  "1"
+is  "missing lock prints no path"               "$OUT" ""
+contains "missing lock names the fix" "$ERR" "proj_vpipe_pin"
+
+# The single most important assertion in this file: an unpinned project must NOT quietly
+# get the live working checkout, which is precisely what every driver did before phase D.
+mkdir -p "$TMP/fakehome/vpipe/bin"; : > "$TMP/fakehome/vpipe/bin/00-config.sh"
+sh_run "HOME='$TMP/fakehome'; $INIT >/dev/null; QPROJ_VPIPE_LOCK='$TMP/absent.lock' qproj_vpipe_root"
+is  "never falls back to \$HOME/vpipe even when it exists" "$OUT" ""
+is  "  ... and reports failure"                            "$RC"  "1"
+
+NOFIELD="$TMP/nofield.lock"; grep -v '^release_path:' "$LOCK" > "$NOFIELD"
+sh_run "$INIT >/dev/null; QPROJ_VPIPE_LOCK='$NOFIELD' qproj_vpipe_root"
+is  "absent field aborts"          "$RC"  "1"
+contains "absent field is named"   "$ERR" "release_path"
+
+# Fail-closed, not first-wins: two definitions are ambiguous, so refuse to pick.
+DUP="$TMP/dup.lock"; { cat "$LOCK"; printf 'release_path: "%s"\n' "$TMP/other"; } > "$DUP"
+sh_run "$INIT >/dev/null; QPROJ_VPIPE_LOCK='$DUP' qproj_vpipe_root"
+is  "duplicate field aborts instead of taking the first" "$RC"  "1"
+is  "  ... and emits no path"                            "$OUT" ""
+contains "duplicate field says how many"                 "$ERR" "2 times"
+
+# The spec freezes these as double-quoted scalars; anything else is a shape the grep
+# cannot read, and reading it wrongly is worse than not reading it.
+UNQ="$TMP/unquoted.lock"; sed "s|^release_path: .*|release_path: $REL|" "$LOCK" > "$UNQ"
+sh_run "$INIT >/dev/null; QPROJ_VPIPE_LOCK='$UNQ' qproj_vpipe_root"
+is  "unquoted value aborts"        "$RC"  "1"
+contains "unquoted value explains" "$ERR" "double-quoted"
+
+GONE="$TMP/gone.lock"; mklock "$GONE" "$TMP/store/nonexistent"
+sh_run "$INIT >/dev/null; QPROJ_VPIPE_LOCK='$GONE' qproj_vpipe_root"
+is  "absent release tree aborts" "$RC" "1"
+contains "absent release says materialise on the login node" "$ERR" "LOGIN NODE"
+
+mkdir -p "$TMP/store/empty"
+PART="$TMP/partial.lock"; mklock "$PART" "$TMP/store/empty"
+sh_run "$INIT >/dev/null; QPROJ_VPIPE_LOCK='$PART' qproj_vpipe_root"
+is  "release without bin/00-config.sh aborts" "$RC" "1"
+contains "  ... and says it is incomplete"    "$ERR" "incomplete"
+
+# "could not verify" and "verified" must never look alike.
+sh_run "PATH=/nonexistent; $INIT >/dev/null; QPROJ_VPIPE_LOCK='$LOCK' qproj_vpipe_check"
+is  "check without a vpipe CLI does not claim success silently" "$RC" "0"
+contains "  ... it warns that nothing was verified" "$ERR" "NOT verified"
+
 printf '\n%s passed, %s failed, %s skipped\n' "$PASS" "$FAIL" "$SKIP"
 [ "$FAIL" -eq 0 ]

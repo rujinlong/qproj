@@ -270,3 +270,121 @@ qproj_nf_prepare() {
     export NXF_CACHE_DIR="$state/cache"              # session cache + history (>=24.10) -> shared
     export QPROJ_NF_LOG="$state/log/nextflow.log"    # caller: nextflow -log "$QPROJ_NF_LOG" run ...
 }
+
+# ── vpipe version pin (integration plan L2) ────────────────────────────────────
+#
+# A driver must not reach for `$HOME/vpipe`: that is the live working checkout, so the
+# next `git checkout` there silently changes what every pinned project runs. It resolves
+# the pin recorded in `analyses/vpipe.lock` to an immutable release tree instead:
+#
+#   VPIPE_ROOT="$(qproj_vpipe_root)"          # assign FIRST (set -e; see header)
+#   export VPIPEBIN="${VPIPE_ROOT}/bin"
+#   source "${VPIPE_ROOT}/bin/00-config.sh"
+#
+# ── why this parses YAML with grep instead of calling a real parser ──
+# This runs in the batch hot path, so it must not depend on any external program. Shelling
+# out to `vpipe` (Python) would put the resolver back on PATH — exactly the mixed-runtime
+# dependency the pin exists to remove (`VPIPEBIN`=version A while PATH finds version B).
+# The lock is machine-written and its format spec (dev/vpipe-lock-format-v1.md §4) freezes
+# the three fields read here as top-level, double-quoted, one-per-line scalars.
+#
+# The safety property is not "the grep is clever", it is that it is FAIL-CLOSED: 0 or >=2
+# matches aborts, an unquoted value aborts, a missing release tree aborts. There is no
+# branch that falls back to a default root. A wrong answer here is invisible — the job
+# runs, produces plausible output, and nobody learns it used the wrong vpipe — so the
+# only acceptable failure mode is refusing to answer.
+#
+# Cross-parser drift (R writes it, Bash and Python read it) is held by a round-trip test:
+# tests/shell/test_qproj_sh.sh + tests/testthat/test-vpipe_lock.R.
+
+# --- default lock location: $QPROJ_ROOT/vpipe.lock (ROOT is the analyses/ axis) ---
+qproj_vpipe_lock_path() {
+    if [ -n "${QPROJ_VPIPE_LOCK:-}" ]; then
+        printf '%s\n' "$QPROJ_VPIPE_LOCK"
+        return 0
+    fi
+    _qproj_require_init qproj_vpipe_lock_path || return 1
+    printf '%s\n' "$QPROJ_ROOT/vpipe.lock"
+}
+
+# --- read one top-level double-quoted scalar; abort unless matched exactly once ---
+_qproj_lock_field() {
+    local lock="$1" key="$2" n value
+    n="$(grep -cE "^${key}:[[:space:]]" -- "$lock" 2>/dev/null)" || n=0
+    if [ "$n" -eq 0 ]; then
+        printf 'qproj: vpipe.lock has no top-level %s: %s\n' "$key" "$lock" >&2
+        printf '  fix: regenerate with qproj::proj_vpipe_pin()\n' >&2
+        return 1
+    fi
+    if [ "$n" -gt 1 ]; then
+        printf 'qproj: vpipe.lock defines %s %s times: %s\n' "$key" "$n" "$lock" >&2
+        printf '  refusing to guess which one is meant; regenerate with qproj::proj_vpipe_pin()\n' >&2
+        return 1
+    fi
+    value="$(sed -nE "s/^${key}:[[:space:]]*\"([^\"]*)\"[[:space:]]*\$/\1/p" -- "$lock")"
+    if [ -z "$value" ]; then
+        printf 'qproj: vpipe.lock %s is not a double-quoted scalar: %s\n' "$key" "$lock" >&2
+        printf '  the shell resolver only reads the frozen scalar form (format spec §4)\n' >&2
+        return 1
+    fi
+    printf '%s\n' "$value"
+}
+
+# --- resolve the pin to an immutable release tree; print it, never default ---
+qproj_vpipe_root() {
+    local lock root
+    lock="$(qproj_vpipe_lock_path)" || return 1
+
+    if [ ! -r "$lock" ]; then
+        printf 'qproj: no readable vpipe.lock at %s\n' "$lock" >&2
+        printf '  this project has not pinned vpipe. Create the pin on the login node:\n' >&2
+        printf '    Rscript -e '\''qproj::proj_vpipe_pin()'\''\n' >&2
+        printf '  (set QPROJ_VPIPE_LOCK to use a lock elsewhere.)\n' >&2
+        return 1
+    fi
+
+    root="$(_qproj_lock_field "$lock" release_path)" || return 1
+
+    if [ ! -d "$root" ]; then
+        printf 'qproj: pinned vpipe release is not present: %s\n' "$root" >&2
+        printf '  (pinned by %s)\n' "$lock" >&2
+        printf '  materialise it ON THE LOGIN NODE — the release store is read-only on\n' >&2
+        printf '  compute nodes by design, so a job can verify a pin but never create one:\n' >&2
+        printf '    vpipe contract resolve --lock %s --materialize\n' "$lock" >&2
+        return 1
+    fi
+    if [ ! -r "$root/bin/00-config.sh" ]; then
+        printf 'qproj: %s exists but has no readable bin/00-config.sh\n' "$root" >&2
+        printf '  the release is incomplete or was partially removed; re-materialise it.\n' >&2
+        return 1
+    fi
+
+    QPROJ_VPIPE_LOCK="$lock"; export QPROJ_VPIPE_LOCK
+    printf '%s\n' "$root"
+}
+
+# --- optional pre-flight gate: full contract check before any compute starts ---
+#
+# The bash resolver above only makes STRUCTURAL guarantees (lock parses, tree is present).
+# Digest, version-range and API checks need a real parser, so they live in `vpipe contract
+# check`. Running it costs one Python start against a job that is usually hours long.
+#
+# The `vpipe` used here is the BOOTSTRAPPER (whatever is on PATH), deliberately distinct
+# from the pinned RUNTIME the job then executes — the same split as `rustup` versus a
+# pinned toolchain. When no bootstrapper is reachable this WARNS rather than passing
+# silently: "could not verify" and "verified" must never look alike.
+qproj_vpipe_check() {
+    local lock strict=""
+    [ "${1:-}" = "--strict" ] && strict="--strict"
+    lock="$(qproj_vpipe_lock_path)" || return 1
+
+    if ! command -v vpipe >/dev/null 2>&1; then
+        printf 'qproj: WARNING no vpipe on PATH — contract NOT verified for %s\n' "$lock" >&2
+        printf '  structural resolution still applied; digest/version/API checks were skipped.\n' >&2
+        return 0
+    fi
+    vpipe contract check --lock "$lock" $strict || {
+        printf 'qproj: vpipe contract check FAILED for %s — refusing to start compute\n' "$lock" >&2
+        return 1
+    }
+}
