@@ -138,13 +138,36 @@ qproj 负责 resolver / submission / step+write discipline / manifest;vpipe 完�
 - **A 基石 ✅ 完成(2026-07-20)**:ship `inst/scripts/qproj.sh`(driver `source` 的 shell path helper,镜像 R:
   `path_target`=`$ROOT/data/$STEP/`、`path_source up`=`$ROOT/data/$up/`、`path_raw`=`$ROOT/data/00-raw/d$STEP/`、
   `path_resource`=`$ROOT/data/00-raw/d00-resource/`、`create_dir_target [--clean]`,外加**新** `path_run_state`=
-  `$ROOT/data/$STEP/run-state/`(shared-FS,非 localscratch));ROOT 定位=从 `--step-file`(不猜 `$0`)向上找
+  `$ROOT/data/.run-state/$STEP/`(shared-FS,非 localscratch;**兄弟**于 step target 而非其子目录——理由见 C 阶段));
+  ROOT 定位=从 `--step-file`(不猜 `$0`)向上找
   `_quarto.yml`+`data/`(对齐 `here::i_am` 的 analyses/ 轴,最近命中优先),STEP 从 `--step-file` basename 派生、
   `qproj_set_step` 可按 subcmd 覆盖。`proj_use_workflow`(R/create.R)扩 gitignore(`.nextflow*`/`analyses/**/work/`/`.command.*`)。
   **验证**:`bash -n`+`shellcheck` 零 warning;14 项单元测试全过(ROOT/STEP 定位、五 path helper、set_step 覆盖、
   create_dir、set -e 下 assign-first、文件名误用告警);Rscript 实测 gitignore 输出正确。**driver `set -e` 陷阱**已
   在 qproj.sh 头部文档化:`input="$(path_source ..)"` 先赋值(command subst 失败被外层命令掩盖)。
-  **未接线**:driver 如何定位 qproj.sh(`system.file("scripts/qproj.sh")` vs env)留待 B 阶段试点确定。
+  ~~**未接线**:driver 如何定位 qproj.sh(`system.file("scripts/qproj.sh")` vs env)留待 B 阶段试点确定。~~
+  **✅ 接线已闭合(2026-07-21)** —— B 阶段实际用硬编码 dev-checkout 路径绕过了这个 TODO,且两个调用方
+  (`analyses/pc047e3.slurm` 与 `workflow/run_local.sh`)的 resolver **已分叉**(前者三级+静默跳过、后者一级+裸 bash 崩)。
+  现定契约并两侧实现:
+  - **R 侧 SSOT**:新增 `R/shell.R` —— exported `proj_shell_lib()`(返回已装包的 qproj.sh,找不到 loud abort)
+    与 `proj_shell_bootstrap(step, optional)`(返回 canonical bash 块;`step=` 时附带调用行)。
+  - **解析优先级**:`$QPROJ_SH`(**设了但不可读 = hard error**,绝不静默降级——防 typo 落到另一份旧 qproj.sh)
+    → `system.file()`(装了包的站点 authoritative)→ `$QPROJ_HOME/inst/scripts/qproj.sh`(dev checkout,默认
+    `~/github/rujinlong/qproj`)→ 全落空则列出所有尝试路径后 fail。解析成功后 **export `QPROJ_SH`**,子脚本与
+    nested `srun` 复用同一份(免二次 Rscript、且保证同版本)。
+  - **为何不能用更简单的机制**(三条都实测排除):① 相对脚本自身定位 —— sbatch 下脚本从 spool 副本执行
+    (job 96 实证 `$0`=`/var/spool/slurmd/job00096/slurm_script`);② PATH 查找 —— 重新引入 L3 要防的
+    mixed runtime;③ 只靠 `system.file()` —— **`~/R/` 是节点本地**(2026-07-21 实测 spark1 inode 16267508 /
+    spark2 3151102,mtime 亦不同),login 节点装的包 batch job 看不见,而 `~/github` 才是 autofs 共享。
+  - **两处副本策略**:上述三条排除后 resolver 必须以逐字副本内嵌于每个 driver。故 SSOT 在 R,副本带
+    `# qproj-bootstrap v1` 版本标记供 grep 查漂移,两处脚本头部均注明「勿手改,回 qproj 改 SSOT 再生成」。
+  - **回归测试(补上 A/C 阶段声称却从未入库的那批)**:`tests/shell/test_qproj_sh.sh` 45 项断言(ROOT/STEP 定位、
+    五个 path helper、set_step、create_dir_target 的 rm -rf 越界防护、set -e assign-first vs inline 掩盖、
+    `qproj_nf_prepare` 的三个 export + `$(...)` 丢 export 反证 + `--clean` 不毁 run-state、resolver 六种情形),
+    经 `tests/testthat/test-shell.R` 接入 `devtools::test()`。**验证**:45/45 过、testthat 20/20 过、
+    `bash -n`+`shellcheck` 零 warning(两个改过的脚本 shellcheck findings 各 **减少** 1 条 SC1090、无新增);
+    真 **sbatch job 96**(spark2)证 spool 下 driver 告警 0 行、path_* 解析正确、rc=0;`run_local.sh` 的
+    `RAW`/`WORK` 与改动前逐字一致。
 - **B driver 归位试点 ✅ 完成(2026-07-20,试点=pc047e3-HpyloriTcell,轻量归位)**:
   `pc047e3.slurm`(291 行,10 subcmd metagenomics read-level 预处理)从 `~/vpipe/bin/` 搬入
   `pc047e3-HpyloriTcell/analyses/`。改造:① `source "${VPIPEBIN}/00-config.sh"` → `VPIPE_ROOT="${VPIPE_ROOT:-$HOME/vpipe}";
@@ -158,15 +181,26 @@ qproj 负责 resolver / submission / step+write discipline / manifest;vpipe 完�
   ⚠ **pc047e3 特例**:它是 read-level 预处理(fastp/metaphlan/minimap2),**不调 `assembly.slurm`**——故本试点验证的是
   L1 归位 + qproj.sh 接线 + `VPIPE_ROOT`(非 PATH),**未**覆盖计划原设想的 `${VPIPE_ROOT}/bin/assembly.slurm` mixed-runtime
   修复(那需选一个调 assembly.slurm 的 binning driver 如 p0101 另做,留后续)。
-- **C run state 分离 ✅ 完成(2026-07-20)**:qproj.sh 加 `qproj_nf_prepare`——建 `run-state/{work,launch,log}` 并
-  **export** `NXF_WORK`(work→shared)、`QPROJ_NF_LOG`、`QPROJ_NF_LAUNCH`;driver 直接调用(⚠ 非 `$(...)`,否则子 shell
-  丢 export——单元测试实抓此坑)后 `( cd "$QPROJ_NF_LAUNCH" && nextflow -log "$QPROJ_NF_LOG" run pipeline.nf -resume ... )`。
-  **两处 flag 纠错(cli-experiment 实抓,均经 Context7/实跑核实)**:① **无 `NXF_CACHE_DIR`** 这个 env——Nextflow 本地
-  LevelDB cache + history 在 `<launch>/.nextflow/`,靠 `cd $launch` 落 shared(不是靠某 env);② `-log` 是 nextflow **global**
-  option,在 `run` **之前**(`nextflow -log X run ...`,非 `run ... -log X`)。**验证**:单元测试(直接调用 export 生效)+ **真实
-  minimal NF 实跑**(Java 21 via minced env):work/`.nextflow`(cache+history)/log 全落 run-state、publishDir `mode:'copy'`
-  → `path_target`、launch 下无默认 `./work`(反证 NXF_WORK 生效)。**建议(文档化,非强制)**:publishDir `mode:'copy'`(产物
-  outlive work cleanup) + driver 侧 `trap 'rm -rf "$(path_target)"' ERR`(MVP;staging→promote 可选 hardening)。
+- **C run state 分离 ✅ 完成(2026-07-20;§7-C 事实经 2026-07-21 实证修订,见下 ⚠)**:qproj.sh 加 `qproj_nf_prepare`——
+  建 `data/.run-state/$STEP/{work,cache,log}` 并 **export** `NXF_WORK`(→shared)、`NXF_CACHE_DIR`(session cache+history
+  →shared)、`QPROJ_NF_LOG`;driver 直接调用(⚠ 非 `$(...)`,否则子 shell 丢 export——单元测试实抓此坑)后
+  `nextflow -log "$QPROJ_NF_LOG" run pipeline.nf -resume ...`(**无需 cd**,caller CWD 保留 → 相对 pipeline/input 路径与
+  launch-dir 的 `nextflow.config` 仍能解析)。run-state 是 step target 的**兄弟**(`data/.run-state/$STEP`,非
+  `data/$STEP/run-state/`):否则 `create_dir_target --clean` 与 driver 的 `trap 'rm -rf "$(path_target)"' ERR` 会连带
+  毁掉 resume 所需的 cache。
+  **flag 纠错(cli-experiment 实抓)**:`-log` 是 nextflow **global** option,在 `run` **之前**(`nextflow -log X run ...`,
+  非 `run ... -log X`)。
+  > ⚠ **本条曾载有一条错误事实,2026-07-21 实证推翻(pm `EL-001`/`EL-006`)**。原文写「**无 `NXF_CACHE_DIR`** 这个 env,
+  > 靠 `cd $launch` 落 shared」并 export 一个 `QPROJ_NF_LAUNCH`。实际:`NXF_CACHE_DIR` **自 Nextflow 24.10.0 起存在**,
+  > Codex 修复 commit `1b74c6e` 已据此改了实现,但当时没回写本文档 → 文档与 shipped 代码分叉。**实证**:①
+  > `unzip -p nextflow-{26.04.3,24.10.4}-one.jar | strings | grep NXF_CACHE_DIR` 两 jar 均命中;② 最小 pipeline 真跑
+  > (rc=0)后 launch 目录下**既无 `./work` 也无 `./.nextflow`**,`NXF_CACHE_DIR` 内实际生成 `cache/ history/ plr/`;
+  > ③ **负对照**:第二次 `-resume` → `cached=1 completed=0`,把 `NXF_CACHE_DIR` 换成空目录 → `cached=0 completed=1`。
+  > 代码里**没有** `QPROJ_NF_LAUNCH`。**教训**:reviewer 推翻已写进 SSOT 文档的事实性声称时,必须同一次提交回写文档。
+
+  **验证**:单元测试(直接调用 export 生效)+ **真实 minimal NF 实跑**(Java via minced env)。**建议(文档化,非强制)**:
+  publishDir `mode:'copy'`(产物 outlive work cleanup) + driver 侧 `trap 'rm -rf "$(path_target)"' ERR`(MVP;
+  staging→promote 可选 hardening)。
 - **D 版本契约**:vpipe 起统一 semver + 首个 "legacy baseline" release;生成 BOM;`vpipe.lock` + `vpipe contract check`;
   修 `current`/`latest` → digest/release pin。
 - **E ABI 收窄**:vpipe 暴露 `lib/vpipe/runtime-v1.sh` + `conf/public/*.config`,00-config/functions 降 private。

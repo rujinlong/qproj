@@ -18,15 +18,15 @@ proj_dir_info(
 specify \code{NULL} to use system time-zone.}
 
 \item{cols}{\code{character} vector of column-names to return from
-\code{\link[fs:dir_ls]{fs::dir_info()}}; specify \code{NULL} to return all columns.}
+\code{\link[fs:dir_info]{fs::dir_info()}}; specify \code{NULL} to return all columns.}
 
-\item{...}{additional arguments passed to \code{\link[fs:dir_ls]{fs::dir_info()}}.}
+\item{...}{additional arguments passed to \code{\link[fs:dir_info]{fs::dir_info()}}.}
 }
 \value{
 \code{data.frame} with S3 classes \code{"tbl_df"} and \code{"tbl"}, aka a "tibble".
 }
 \description{
-This provides a different take on \code{\link[fs:dir_ls]{fs::dir_info()}}, by default
+This provides a different take on \code{\link[fs:dir_info]{fs::dir_info()}}, by default
 returning only a (hopefully useful) subset of the information.
 }
 \examples{

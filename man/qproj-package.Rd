@@ -51,4 +51,9 @@ Useful links:
 \author{
 \strong{Maintainer}: Jinlong Ru \email{jinlong.ru@gmail.com}
 
+Authors:
+\itemize{
+  \item Jinlong Ru \email{jinlong.ru@gmail.com}
+}
+
 }
