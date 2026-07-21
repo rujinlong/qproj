@@ -160,7 +160,7 @@ qproj 负责 resolver / submission / step+write discipline / manifest;vpipe 完�
     mixed runtime;③ 只靠 `system.file()` —— **`~/R/` 是节点本地**(2026-07-21 实测 spark1 inode 16267508 /
     spark2 3151102,mtime 亦不同),login 节点装的包 batch job 看不见,而 `~/github` 才是 autofs 共享。
   - **两处副本策略**:上述三条排除后 resolver 必须以逐字副本内嵌于每个 driver。故 SSOT 在 R,副本带
-    `# qproj-bootstrap v1` 版本标记供 grep 查漂移,两处脚本头部均注明「勿手改,回 qproj 改 SSOT 再生成」。
+    `# qproj-bootstrap v2` 版本标记供 grep 查漂移(★ 块内容一变必须同 commit bump,否则旧副本与新版同号、drift 检测失效),两处脚本头部均注明「勿手改,回 qproj 改 SSOT 再生成」。
   - **回归测试(补上 A/C 阶段声称却从未入库的那批)**:`tests/shell/test_qproj_sh.sh` 45 项断言(ROOT/STEP 定位、
     五个 path helper、set_step、create_dir_target 的 rm -rf 越界防护、set -e assign-first vs inline 掩盖、
     `qproj_nf_prepare` 的三个 export + `$(...)` 丢 export 反证 + `--clean` 不毁 run-state、resolver 六种情形),
