@@ -62,7 +62,12 @@ proj_shell_lib <- function(mustWork = TRUE) {
 
 # The canonical Bash resolver. Kept as a single string constant so there is exactly one
 # copy in this package; drivers embed it verbatim. The trailing version marker lets a
-# grep spot drift between this source and the copies living in project repos.
+# grep (`rg 'qproj-bootstrap v'` across project repos) spot copies that lag this source.
+#
+# ★ BUMP THE MARKER WHENEVER THIS BLOCK CHANGES, in the same commit. A marker that stays
+#   put while the content moves is worse than none: a copy taken before the change still
+#   reads "v<N>" and is indistinguishable from an up-to-date one, so the grep reports
+#   agreement where there is drift. (v1 -> v2 on 2026-07-21 for the unset-HOME fix.)
 qproj_bootstrap_block <- '# ── qproj shell path helpers ── canonical block; SSOT = qproj::proj_shell_bootstrap()
 # Locate order: $QPROJ_SH (set-but-unreadable is a HARD error, never a silent downgrade --
 #   a typo must not quietly fall through to a different, older qproj.sh)
@@ -74,7 +79,7 @@ qproj_bootstrap_block <- '# ── qproj shell path helpers ── canonical blo
 # The resolved path is exported as QPROJ_SH so child scripts and nested `srun` reuse the
 #   same file without paying for another Rscript startup or risking a different version.
 # Set QPROJ_OPTIONAL=1 in the caller to downgrade a miss to a warning (path_* unavailable).
-_qproj_bootstrap() {                                    # qproj-bootstrap v1
+_qproj_bootstrap() {                                    # qproj-bootstrap v2
     local p tried
     if [ -n "${QPROJ_SH:-}" ]; then
         [ -r "$QPROJ_SH" ] || {

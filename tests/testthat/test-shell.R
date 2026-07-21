@@ -25,7 +25,7 @@ test_that("proj_shell_bootstrap() emits the resolver with its precedence intact"
 
   # All three candidates, in order, plus the version marker used to spot drift between
   # this SSOT and the verbatim copies living in project repos.
-  expect_match(block, "qproj-bootstrap v1", fixed = TRUE)
+  expect_match(block, "qproj-bootstrap v2", fixed = TRUE)
   expect_match(block, "QPROJ_SH", fixed = TRUE)
   expect_match(block, 'system.file("scripts/qproj.sh", package = "qproj")', fixed = TRUE)
   expect_match(block, "QPROJ_HOME", fixed = TRUE)
