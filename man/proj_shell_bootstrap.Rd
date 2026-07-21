@@ -10,7 +10,10 @@ proj_shell_bootstrap(step = NULL, optional = FALSE)
 \item{step}{Optional step id. When supplied, the returned text includes the
 \verb{_qproj_bootstrap --step <step>} call line and the surrounding failure handling;
 otherwise only the function definition is returned and the caller writes its own
-call.}
+call. Must match \verb{^[A-Za-z0-9][A-Za-z0-9._-]*$} --- \strong{stricter than the shell-side
+\verb{_qproj_validate_step}}, because this text is pasted into generated Bash, where
+whitespace or a shell metacharacter would change the emitted script rather than
+just name an odd directory. The value is single-quoted in the output as well.}
 
 \item{optional}{If \code{TRUE}, the emitted call line tolerates a miss (warn and carry on,
 with \verb{path_*} unavailable) instead of exiting. Only meaningful with \code{step}.}

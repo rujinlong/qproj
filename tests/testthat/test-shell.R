@@ -43,7 +43,7 @@ test_that("proj_shell_bootstrap(step=) appends a call line", {
 
   expect_match(
     proj_shell_bootstrap(step = "010-import"),
-    "_qproj_bootstrap --step 010-import \\|\\| exit 1$"
+    "_qproj_bootstrap --step '010-import' \\|\\| exit 1$"
   )
 
   expect_match(
@@ -54,12 +54,54 @@ test_that("proj_shell_bootstrap(step=) appends a call line", {
 
 test_that("proj_shell_bootstrap() rejects a step that could escape the data directory", {
 
-  # STEP feeds create_dir_target --clean's rm -rf, so the R side mirrors the shell-side
-  # guard rather than trusting the caller.
-  expect_error(proj_shell_bootstrap(step = "a/b"), "single path component")
-  expect_error(proj_shell_bootstrap(step = ".."), "single path component")
+  # STEP feeds create_dir_target --clean's rm -rf.
+  expect_error(proj_shell_bootstrap(step = "a/b"), "plain step id")
+  expect_error(proj_shell_bootstrap(step = ".."), "plain step id")
   expect_error(proj_shell_bootstrap(step = ""), "non-empty")
   expect_error(proj_shell_bootstrap(step = c("a", "b")), "non-empty")
+
+  # nzchar(NA_character_) is TRUE, so an NA slips past a naive emptiness check and would
+  # render as the literal string "NA" (Codex review, 2026-07-21).
+  expect_error(proj_shell_bootstrap(step = NA_character_), "non-empty")
+})
+
+test_that("proj_shell_bootstrap() cannot be made to emit extra shell statements", {
+
+  # The step is pasted into generated Bash. Without a guard, `a; echo PWNED` emitted
+  # `_qproj_bootstrap --step a; echo PWNED || exit 1` -- two statements (Codex, 2026-07-21).
+  for (bad in c("a; echo PWNED", "a b", "a$(id)", "a`id`", "a\nb", "a'b", 'a"b', "-a", ".a/b")) {
+    expect_error(proj_shell_bootstrap(step = bad), "plain step id", info = bad)
+  }
+
+  # A legal step is still single-quoted, so the call line stays one argument.
+  expect_match(
+    proj_shell_bootstrap(step = "010-import"),
+    "--step '010-import'", fixed = TRUE
+  )
+})
+
+test_that("the emitted resolver survives an unset HOME under set -u", {
+
+  skip_if(.Platform$OS.type == "windows", "the block is Bash")
+  skip_if(unname(Sys.which("bash")) == "", "bash not available")
+
+  # `sbatch --export=NIL` drops HOME. A bare $HOME under `set -euo pipefail` aborted the
+  # whole driver instead of reaching the resolver's own error path (Codex, 2026-07-21).
+  block <- withr::local_tempfile(fileext = ".sh")
+  writeLines(proj_shell_bootstrap(), block)
+
+  out <- suppressWarnings(system2(
+    "env",
+    c("-u", "HOME", "-u", "QPROJ_SH", "-u", "QPROJ_HOME", "bash", "-c",
+      shQuote(paste0(
+        "set -euo pipefail; . ", shQuote(block),
+        "; PATH=/nonexistent; _qproj_bootstrap --step s || printf handled; printf ' after'"
+      ))),
+    stdout = TRUE, stderr = TRUE
+  ))
+
+  expect_false(any(grepl("unbound variable", out)), info = paste(out, collapse = "\n"))
+  expect_true(any(grepl("handled after", out)), info = paste(out, collapse = "\n"))
 })
 
 test_that("the qproj.sh shell regression harness passes", {

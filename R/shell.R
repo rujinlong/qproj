@@ -88,7 +88,16 @@ _qproj_bootstrap() {                                    # qproj-bootstrap v1
         p="$(Rscript -e \x27cat(system.file("scripts/qproj.sh", package = "qproj"))\x27 2>/dev/null || true)"
         tried="installed R package -> ${p:-<qproj not installed>}"
         if [ -z "$p" ] || [ ! -r "$p" ]; then
-            p="${QPROJ_HOME:-$HOME/github/rujinlong/qproj}/inst/scripts/qproj.sh"
+            if [ -n "${QPROJ_HOME:-}" ]; then
+                p="$QPROJ_HOME/inst/scripts/qproj.sh"
+            else
+                # `sbatch --export=NIL` drops HOME entirely, and a bare $HOME under `set -u`
+                # would abort the whole driver instead of falling through to the error below.
+                # Resolve it from passwd the way the site batch bootstrap does.
+                local home="${HOME:-}"
+                [ -n "$home" ] || home="$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f6 || true)"
+                p="${home}/github/rujinlong/qproj/inst/scripts/qproj.sh"
+            fi
             tried="$tried; dev checkout -> $p"
             [ -r "$p" ] || {
                 printf "qproj: cannot locate qproj.sh (QPROJ_SH unset; %s)\\n" "$tried" >&2
@@ -136,7 +145,10 @@ _qproj_bootstrap() {                                    # qproj-bootstrap v1
 #' @param step Optional step id. When supplied, the returned text includes the
 #'   `_qproj_bootstrap --step <step>` call line and the surrounding failure handling;
 #'   otherwise only the function definition is returned and the caller writes its own
-#'   call.
+#'   call. Must match `^[A-Za-z0-9][A-Za-z0-9._-]*$` --- **stricter than the shell-side
+#'   `_qproj_validate_step`**, because this text is pasted into generated Bash, where
+#'   whitespace or a shell metacharacter would change the emitted script rather than
+#'   just name an odd directory. The value is single-quoted in the output as well.
 #' @param optional If `TRUE`, the emitted call line tolerates a miss (warn and carry on,
 #'   with `path_*` unavailable) instead of exiting. Only meaningful with `step`.
 #'
@@ -152,29 +164,40 @@ proj_shell_bootstrap <- function(step = NULL, optional = FALSE) {
     return(qproj_bootstrap_block)
   }
 
-  if (!is.character(step) || length(step) != 1L || !nzchar(step)) {
-    cli::cli_abort("{.arg step} must be a single non-empty string.")
+  if (!is.character(step) || length(step) != 1L || is.na(step) || !nzchar(step)) {
+    cli::cli_abort("{.arg step} must be a single non-empty, non-{.code NA} string.")
   }
 
-  # Mirror the shell-side _qproj_validate_step guard: STEP feeds create_dir_target
-  # --clean's rm -rf, so a slash or a dot-segment must never reach it.
-  if (grepl("/", step, fixed = TRUE) || step %in% c(".", "..")) {
+  # DELIBERATELY STRICTER than the shell-side _qproj_validate_step. That guard only has to
+  # keep a slash or a dot-segment out of create_dir_target --clean's rm -rf; this function
+  # GENERATES SHELL SOURCE, so anything the shell parser treats as syntax -- whitespace,
+  # `;`, `$(`, a newline, a quote -- would change the meaning of the emitted script rather
+  # than merely name an odd directory. Restricting to the project's actual step vocabulary
+  # (010-import, pc047e3, ...) is cheap and removes the whole class.
+  if (!grepl("^[A-Za-z0-9][A-Za-z0-9._-]*$", step) || step %in% c(".", "..")) {
     cli::cli_abort(c(
-      "{.arg step} must be a single path component, not {.val {step}}.",
-      "x" = "A step containing {.code /} or equal to {.code .} / {.code ..} would let
+      "{.arg step} must be a plain step id, not {.val {step}}.",
+      "i" = "Allowed: letters, digits, {.code .}, {.code _}, {.code -}; must start with a
+             letter or digit. E.g. {.val 010-import} or {.val pc047e3}.",
+      "x" = "This text is pasted into generated Bash, so whitespace or shell metacharacters
+             would alter the emitted script; a {.code /} or {.code ..} would additionally let
              {.code create_dir_target --clean} delete outside the step directory."
     ))
   }
 
+  # Belt and braces: even a pattern-clean step is single-quoted, so the emitted line stays
+  # one argument if the pattern is ever loosened.
+  quoted <- paste0("'", gsub("'", "'\\\\''", step), "'")
+
   call_line <- if (isTRUE(optional)) {
     paste0(
-      '_qproj_bootstrap --step ', step, ' || {\n',
+      '_qproj_bootstrap --step ', quoted, ' || {\n',
       '    printf "qproj: path helpers unavailable; %s continues without path_*\\n" ',
-      '"', step, '" >&2\n',
+      quoted, ' >&2\n',
       '}'
     )
   } else {
-    paste0('_qproj_bootstrap --step ', step, ' || exit 1')
+    paste0('_qproj_bootstrap --step ', quoted, ' || exit 1')
   }
 
   paste(qproj_bootstrap_block, "", call_line, sep = "\n")
