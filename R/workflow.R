@@ -75,9 +75,14 @@ use_qmd <- function(name, path_proj = "analyses",
   here_subpath <- sub("^analyses/?", "", path_proj)
   i_am_path <- if (nzchar(here_subpath)) file.path(here_subpath, filename) else filename
 
-  # use_template() does not create intermediate directories; ensure path_proj
-  # exists (e.g. analyses/manuscript/ when a step is placed in a sub-directory).
-  fs::dir_create(path_proj)
+  # use_template() does not create intermediate directories; ensure path_proj exists
+  # (e.g. analyses/manuscript/ when a step is placed in a sub-directory).
+  # ANCHOR AT THE PROJECT ROOT: `save_as` below is resolved by usethis against the
+  # project, so a bare `fs::dir_create(path_proj)` -- which is CWD-relative -- creates the
+  # wrong directory whenever the caller is not sitting at the project root. Working from
+  # inside analyses/ is the normal state for a qproj user, and there it silently produced
+  # a stray, empty analyses/analyses/ while the qmd landed correctly under the root.
+  fs::dir_create(usethis::proj_path(path_proj))
 
   usethis::use_template(
     "workflow.qmd",

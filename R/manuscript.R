@@ -84,9 +84,16 @@ use_manuscript <- function(name = manuscript_default_name(),
   here_subpath <- sub("^analyses/?", "", path_proj)
   i_am_path <- if (nzchar(here_subpath)) file.path(here_subpath, filename) else filename
 
-  # use_template() does not create intermediate directories; ensure path_proj
-  # exists (notably the analyses/manuscript/ sub-directory on first scaffold).
-  fs::dir_create(path_proj)
+  # use_template() does not create intermediate directories; ensure path_proj exists
+  # (notably the analyses/manuscript/ sub-directory on first scaffold).
+  # ANCHOR AT THE PROJECT ROOT: usethis resolves `save_as` (and the two sibling files
+  # written further down) against the project, whereas fs::* are CWD-relative. Mixing the
+  # two split the scaffold in half whenever the caller was not at the project root --
+  # and calling this from inside analyses/, the normal qproj working directory, made
+  # use_template() fail outright ("cannot open file .../manuscript/<name>.qmd") because
+  # the directory it needed had been created one level too deep instead.
+  dir_proj <- usethis::proj_path(path_proj)
+  fs::dir_create(dir_proj)
 
   usethis::use_template(
     "manuscript.qmd",
@@ -98,16 +105,19 @@ use_manuscript <- function(name = manuscript_default_name(),
   )
 
   # Drop the title.tex partial verbatim (pandoc template syntax, no whisker).
-  title_dest <- fs::path(path_proj, "title.tex")
+  # `title_dest` is absolute (project-anchored, see dir_proj above); `title_show` is the
+  # project-relative form used in messages so the output stays readable.
+  title_dest <- fs::path(dir_proj, "title.tex")
+  title_show <- fs::path(path_proj, "title.tex")
   if (fs::file_exists(title_dest)) {
-    cli::cli_alert_info("{.file {title_dest}} already exists; left untouched.")
+    cli::cli_alert_info("{.file {title_show}} already exists; left untouched.")
   } else {
     title_src <- system.file("templates", "title.tex", package = "qproj")
     if (!nzchar(title_src)) {
       cli::cli_abort("Could not locate {.file title.tex} template in the qproj package.")
     }
     fs::file_copy(title_src, title_dest)
-    cli::cli_alert_success("Wrote author-block partial {.file {title_dest}}.")
+    cli::cli_alert_success("Wrote author-block partial {.file {title_show}}.")
   }
 
   # Isolate the manuscript as its own Quarto project root. Without a _quarto.yml
@@ -117,9 +127,10 @@ use_manuscript <- function(name = manuscript_default_name(),
   # rendered byline is correct only by Quarto's name de-dup (version-fragile).
   # `render:` is scoped to the manuscript so a bare `quarto render` here does not
   # sweep sibling files (supplementary/, archive/); explicit renders are unaffected.
-  quarto_dest <- fs::path(path_proj, "_quarto.yml")
+  quarto_dest <- fs::path(dir_proj, "_quarto.yml")
+  quarto_show <- fs::path(path_proj, "_quarto.yml")
   if (fs::file_exists(quarto_dest)) {
-    cli::cli_alert_info("{.file {quarto_dest}} already exists; left untouched.")
+    cli::cli_alert_info("{.file {quarto_show}} already exists; left untouched.")
   } else {
     writeLines(c(
       "# qproj: make this manuscript its own Quarto project root so an ancestor",
@@ -133,7 +144,7 @@ use_manuscript <- function(name = manuscript_default_name(),
       "  render:",
       glue::glue("    - {filename}")
     ), quarto_dest)
-    cli::cli_alert_success("Wrote Quarto project isolation {.file {quarto_dest}}.")
+    cli::cli_alert_success("Wrote Quarto project isolation {.file {quarto_show}}.")
   }
 
   cli::cli_alert_info("Next: generate the Word {.code reference-doc} once from a styled source:")

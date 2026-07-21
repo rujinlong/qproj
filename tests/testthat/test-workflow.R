@@ -93,6 +93,49 @@
       )
     })
 
+    test_that("use_manuscript() default lands the whole scaffold in analyses/manuscript/", {
+
+      # The default path_proj is a SUB-directory of the analyses/ axis, and the three
+      # pieces are written by two different mechanisms: usethis::use_template() resolves
+      # `save_as` against the PROJECT ROOT, while fs::* are CWD-relative. Mixing them used
+      # to split the scaffold apart, so assert all three land together.
+      expect_no_error(use_manuscript("092-manuscript", open = FALSE))
+
+      dir_ms <- fs::path(localdir, "analyses", "manuscript")
+      expect_true(fs::dir_exists(dir_ms))
+      for (f in c("092-manuscript.qmd", "title.tex", "_quarto.yml")) {
+        expect_true(fs::file_exists(fs::path(dir_ms, f)), info = f)
+      }
+
+      # here::i_am() is declared relative to the analyses/ axis, so proj_path_*() keep
+      # resolving to the SHARED analyses/data/ rather than collapsing to manuscript/data/.
+      content <- readLines(fs::path(dir_ms, "092-manuscript.qmd"))
+      expect_true(any(grepl('i_am("manuscript/092-manuscript.qmd"', content, fixed = TRUE)))
+
+      # _quarto.yml isolates the manuscript as its own Quarto project root
+      expect_true(any(grepl("^project:", readLines(fs::path(dir_ms, "_quarto.yml")))))
+    })
+
+    test_that("use_qmd()/use_manuscript() are CWD-independent (no stray directories)", {
+
+      # Working from inside analyses/ is the normal qproj state. Before the fix,
+      # fs::dir_create(path_proj) resolved against the CWD: use_qmd() silently created an
+      # empty analyses/analyses/, and use_manuscript() failed outright because
+      # use_template() then had no directory to write its qmd into.
+      withr::local_dir(fs::path(localdir, "analyses"))
+
+      expect_no_error(use_qmd("02-from-subdir", path_proj = "analyses", open = FALSE))
+      expect_no_error(use_manuscript("093-manuscript", open = FALSE))
+
+      expect_true(fs::file_exists(fs::path(localdir, "analyses", "02-from-subdir.qmd")))
+      expect_true(
+        fs::file_exists(fs::path(localdir, "analyses", "manuscript", "093-manuscript.qmd"))
+      )
+
+      # nothing was created one level too deep
+      expect_false(fs::dir_exists(fs::path(localdir, "analyses", "analyses")))
+    })
+
     test_that("detect_project_code / manuscript_default_name derive from project dir", {
 
       tmp <- withr::local_tempdir()
