@@ -200,6 +200,26 @@ test_that("pinning refuses a checkout that is not there", {
 })
 
 
+test_that("an untagged ref is refused BEFORE anything is materialised", {
+  # The refusal always existed; it just came after ~21 MB had been expanded into the
+  # release store, leaving an `untagged+<sha>` tree the user cannot use and did not ask
+  # for. Checking the tag first costs one `git describe`.
+  skip_if(!nzchar(Sys.which("git")), "git not available")
+  repo <- Sys.getenv("VPIPE_HOME", unset = "~/vpipe")
+  skip_if(!fs::dir_exists(fs::path_expand(repo)), "no vpipe checkout")
+
+  expect_null(vpipe_exact_tag(fs::path_expand(repo), "HEAD~1000000"))
+
+  dir <- withr::local_tempdir()
+  fs::file_create(fs::path(dir, "DESCRIPTION"))
+  withr::local_options(usethis.quiet = TRUE)
+  usethis::proj_set(dir, force = TRUE)
+  expect_error(
+    proj_vpipe_pin(ref = "HEAD~1000000"),
+    "not an exact release tag"
+  )
+})
+
 test_that("Bash reads back exactly what R wrote (cross-parser round trip)", {
   # The mitigation the lock format spec (§4) requires in exchange for letting the Bash
   # resolver parse YAML with an anchored grep. Three parsers read this file -- R here,

@@ -179,6 +179,27 @@ vpipe_lock_text <- function(fields) {
   )
 }
 
+#' The exact tag at `ref`, or `NULL` when it is untagged
+#'
+#' Asked before materialising rather than after. `proj_vpipe_pin()` refuses untagged
+#' commits -- a pin naming one cannot satisfy any `requires` range -- but it used to
+#' discover that only after expanding ~21 MB into the release store, leaving behind an
+#' `untagged+<sha>` tree the user cannot use and did not ask for.
+#'
+#' @noRd
+vpipe_exact_tag <- function(repo, ref) {
+
+  out <- suppressWarnings(system2(
+    "git",
+    c("-C", shQuote(repo), "describe", "--tags", "--exact-match", shQuote(ref)),
+    stdout = TRUE, stderr = FALSE
+  ))
+
+  if (!is.null(attr(out, "status")) || !length(out) || !nzchar(out[[1]])) return(NULL)
+
+  sub("^v", "", trimws(out[[1]]))
+}
+
 #' Pin this project to an immutable vpipe release
 #'
 #' Materialises the vpipe commit named by `ref` into the release store (on a host that can
@@ -220,6 +241,16 @@ proj_vpipe_pin <- function(path_proj = "analyses/vpipe.lock",
     cli::cli_abort(c(
       "No vpipe checkout at {.path {repo}}.",
       "i" = "Set {.envvar VPIPE_HOME} or pass {.arg vpipe_repo}."
+    ))
+  }
+
+  # Refuse before spending disk, not after.
+  if (is.null(vpipe_exact_tag(repo, ref))) {
+    cli::cli_abort(c(
+      "{.val {ref}} is not an exact release tag in {.path {repo}}.",
+      "x" = "A pin naming an untagged commit cannot satisfy any {.field requires} range.",
+      "i" = "Tag the release in vpipe first, then pin that tag.",
+      "i" = "Available: {.code git -C {repo} tag --list 'v*' | tail -5}"
     ))
   }
 
