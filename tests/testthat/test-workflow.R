@@ -136,6 +136,53 @@
       expect_false(fs::dir_exists(fs::path(localdir, "analyses", "analyses")))
     })
 
+    test_that("proj_use_workflow()/proj_workflow_config() are CWD-independent too", {
+
+      # Same defect class as above, in two sibling public APIs (Codex, 2026-07-21).
+      withr::local_dir(fs::path(localdir, "analyses"))
+
+      suppressMessages(proj_use_workflow("analyses"))
+      expect_false(fs::dir_exists(fs::path(localdir, "analyses", "analyses")))
+      # .gitignore belongs at the project root, not wherever the caller stood...
+      expect_false(fs::file_exists(fs::path(localdir, "analyses", ".gitignore")))
+      # ...while the RULE TEXT stays project-relative, because git resolves rules
+      # relative to the file the rule lives in.
+      expect_true(any(grepl("^analyses/data/\\*$", readLines(fs::path(localdir, ".gitignore")))))
+
+      writeLines(c("render:", "  first: 01-a.qmd"),
+                 fs::path(localdir, "analyses", "_qproj.yml"))
+      # Returned NULL for a config that exists when called from inside analyses/.
+      expect_false(is.null(proj_workflow_config("analyses")))
+      # An absolute path must keep working: proj_path_source() passes here::here().
+      expect_false(
+        is.null(proj_workflow_config(as.character(fs::path(localdir, "analyses"))))
+      )
+      fs::file_delete(fs::path(localdir, "analyses", "_qproj.yml"))
+    })
+
+    test_that("path_proj cannot escape the project", {
+
+      # usethis::proj_path() rejects absolute paths but NORMALISES "..", so
+      # path_proj = "../outside" used to resolve outside the project and really wrote
+      # files there (Codex, 2026-07-21).
+      expect_error(
+        use_qmd("01-escape", path_proj = "../outside", open = FALSE),
+        "stay inside the project"
+      )
+      expect_error(
+        use_manuscript("094-escape", path_proj = "../outside", open = FALSE),
+        "stay inside the project"
+      )
+      expect_error(
+        suppressMessages(proj_use_workflow("../outside")),
+        "stay inside the project"
+      )
+      expect_false(fs::dir_exists(fs::path(localdir, "..", "outside")))
+
+      # Absolute paths keep being rejected by usethis, with no directory left behind.
+      expect_error(use_qmd("01-abs", path_proj = tempdir(), open = FALSE), "absolute")
+    })
+
     test_that("detect_project_code / manuscript_default_name derive from project dir", {
 
       tmp <- withr::local_tempdir()

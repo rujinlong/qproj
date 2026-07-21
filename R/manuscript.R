@@ -92,7 +92,7 @@ use_manuscript <- function(name = manuscript_default_name(),
   # and calling this from inside analyses/, the normal qproj working directory, made
   # use_template() fail outright ("cannot open file .../manuscript/<name>.qmd") because
   # the directory it needed had been created one level too deep instead.
-  dir_proj <- usethis::proj_path(path_proj)
+  dir_proj <- proj_anchor(path_proj)
   fs::dir_create(dir_proj)
 
   usethis::use_template(
@@ -150,7 +150,7 @@ use_manuscript <- function(name = manuscript_default_name(),
   cli::cli_alert_info("Next: generate the Word {.code reference-doc} once from a styled source:")
   cli::cli_code(glue::glue(
     "vpipe docx extract-template <your-style.docx> -o ",
-    "{fs::path(path_proj, 'manuscript-template.docx')}"
+    "{fs::path(dir_proj, 'manuscript-template.docx')}"
   ))
 
   invisible(NULL)

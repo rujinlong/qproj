@@ -132,9 +132,22 @@ proj_create <- function(path, fields = list(), rstudio = TRUE) {
 #'
 proj_use_workflow <- function(path_proj = "analyses", git_ignore_data = TRUE) {
 
-  fs::dir_create(path_proj)
+  # ANCHOR AT THE PROJECT ROOT. `path_proj` is documented as project-relative, but every
+  # fs::/writeLines() call below is CWD-relative: run from inside analyses/ this created
+  # <project>/analyses/analyses/ and wrote .gitignore into analyses/ (verified). Note the
+  # split -- `dir_proj` is the absolute location we WRITE to, while `path_proj` stays
+  # project-relative for the .gitignore RULE TEXT, which git interprets relative to the
+  # file it lives in.
+  # proj_use_workflow() is a BOOTSTRAP entry point -- it legitimately runs in a bare
+  # directory that is not a project yet, so it must not hard-require an active usethis
+  # project the way the scaffolders do. Anchor to the project when one is discoverable
+  # (that is what fixes being called from inside analyses/) and fall back to the CWD
+  # otherwise, exactly reproducing the old behaviour.
+  proj_root <- proj_root_or_wd()
+  dir_proj <- proj_contain(proj_root, path_proj)
+  fs::dir_create(dir_proj)
 
-  data_dir <- fs::path(path_proj, "data")
+  data_dir <- fs::path(dir_proj, "data")
   fs::dir_create(data_dir)
 
   # Tracked stub keeps data/ in git despite the gitignore rule below
@@ -144,7 +157,8 @@ proj_use_workflow <- function(path_proj = "analyses", git_ignore_data = TRUE) {
   }
 
   if (git_ignore_data) {
-    gitignore_path <- ".gitignore"
+    # .gitignore lives at the project root, not wherever the caller stood.
+    gitignore_path <- fs::path(proj_root, ".gitignore")
     ignores <- c(
       paste0(path_proj, "/data/*"),
       paste0(path_proj, "/tmp/"),
@@ -172,7 +186,7 @@ proj_use_workflow <- function(path_proj = "analyses", git_ignore_data = TRUE) {
   }
 
   # Don't overwrite an existing user _quarto.yml
-  quarto_yml_path <- fs::path(path_proj, "_quarto.yml")
+  quarto_yml_path <- fs::path(dir_proj, "_quarto.yml")
   if (!fs::file_exists(quarto_yml_path)) {
     template_path <- system.file("templates", "_quarto.yml", package = "qproj")
     if (!nzchar(template_path)) {
@@ -181,7 +195,7 @@ proj_use_workflow <- function(path_proj = "analyses", git_ignore_data = TRUE) {
     fs::file_copy(template_path, quarto_yml_path)
   }
 
-  readme_path <- fs::path(path_proj, "README.md")
+  readme_path <- fs::path(dir_proj, "README.md")
   if (!fs::file_exists(readme_path)) {
     writeLines(c(
       paste0("# ", basename(path_proj)),

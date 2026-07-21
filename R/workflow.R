@@ -82,7 +82,7 @@ use_qmd <- function(name, path_proj = "analyses",
   # wrong directory whenever the caller is not sitting at the project root. Working from
   # inside analyses/ is the normal state for a qproj user, and there it silently produced
   # a stray, empty analyses/analyses/ while the qmd landed correctly under the root.
-  fs::dir_create(usethis::proj_path(path_proj))
+  fs::dir_create(proj_anchor(path_proj))
 
   usethis::use_template(
     "workflow.qmd",
@@ -122,7 +122,10 @@ use_qmd <- function(name, path_proj = "analyses",
 #'
 proj_workflow_config <- function(path_proj) {
 
-  path_yml <- fs::path(path_proj, "_qproj.yml")
+  # Anchored, not CWD-relative: called from inside analyses/ this returned NULL for a
+  # config that exists (verified). Soft anchoring keeps the "no config -> NULL" contract
+  # for the absolute here::here() the render path passes in.
+  path_yml <- fs::path(proj_anchor_soft(path_proj), "_qproj.yml")
 
   if (!fs::file_exists(path_yml)) {
     return(NULL)
