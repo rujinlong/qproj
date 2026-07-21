@@ -47,20 +47,37 @@ driver(`analyses/p<code>.slurm` / `.nf` / uv package)负责 fan-out / 命名 / s
 - ⚠ 归位**不杜绝**跨项目依赖(同一文件系统仍可硬编码 `~/github/.../p0101/...` 或经 PATH 调)——
   必须靠 **L4 的 CI firewall** 禁止,不能靠"搬目录期待自然消失"。
 
-### L2 — 版本契约(pin / BOM):每项目一个 `analyses/vpipe.lock`
-```toml
-[vpipe]
-requires = ">=0.9,<1.0"     # 兼容约束(判断能否升级)
-resolved_version = "0.9.4"
-git_commit = "4a1b..."      # 重现用
-bom_digest  = "sha256:..."  # NF+shell+Python+tools.yml+database.yml 同一 BOM
-shell_api = 2 ; nf_api = 1 ; python_api = 3
+### L2 — 版本契约(pin / BOM):每项目一个 `analyses/vpipe.lock` ✅ 已实现(2026-07-21)
+
+**完整格式规范:`dev/vpipe-lock-format-v1.md`(三个解析器照它实现的契约根)。** 摘要:
+
+```yaml
+lock_version: 1
+resolved_version: "0.9.0"      # ─┐ Bash resolver 只读这三个:顶层、双引号、每行一个
+git_commit: "675be1bb…"        #  │ (它在 batch 热路径,不能依赖任何外部程序)
+release_path: "/home/allen/bioinfo/vpipe-releases/0.9.0+675be1b"   # ─┘
+requires: ">=0.9,<1.0"
+bom_digest: "sha256:…"         # tier-1(git tree SHA)+tier-3 → 确定性 → 不匹配 = 篡改 = hard fail
+env_digest: "sha256:…"         # tier-2(观测态)→ 非确定性 → 不匹配 = 漂移 = 默认 WARN
+shell_api: 1 ; nf_api: 1 ; python_api: 1
 ```
+
+> ⚠ **本节原草案写的是 TOML,2026-07-21 改为 YAML(`DEC-D006`)**。理由:`proj_vpipe_pin()` 必须**写** lock,
+> 而 R 生态**没有 TOML writer**(`RcppTOML` 只读且是编译包)——选 TOML 等于要在 R 里手写 TOML 序列化器。
+> YAML 两侧零新依赖(`yaml` 已在 qproj Imports;PyYAML 已被 vpipe 用于 `tools.yml`/`database.yml`)。
+
+- **两个 digest 而非一个**:单一 digest 若同时覆盖 tier-1 与 tier-2,则同一 commit 换天重新物化即得不同
+  digest → 篡改检查彻底失效,而那是 lockfile 唯一值得拥有的性质。
 - **atomic BOM**:NF source / shell toolkit / Python package / `tools.yml` / `database.yml` **必须来自同一 commit**——
-  因 NF module 调裸 `assembly.slurm`(非自包含),分别 pin 会错位。
-- 修 immutability:`database.yml` 的 `current` → 具体 release;`tools.yml` 的 `-latest.img` → digest pin。
-- 每 release 出 **BOM**(代码 SHA + image digest + Python lock + NF version + DB manifest);
-  每次运行出 **run_manifest.json**(project commit + driver digest + resolved vpipe commit + 三个 contract version + 实际命令 + container/DB digest)。
+  因 NF module 调裸 `assembly.slurm`(非自包含),分别 pin 会错位。实现方式:release 允许清单 == BOM 的 digest
+  覆盖面,故「release 里每个文件都被 `bom_digest` 覆盖」。
+- **immutability 未修(用户裁定只出提案)**,但 BOM **观测并记录** `current`/`-latest` 在切 BOM 那一刻解析到什么
+  → 把静默漂移变成可检测漂移。⚠ **实测推翻了本节原先对敞口规模的判断**:`COMMAND_PREFIX_*` 不是 `tools.yml`
+  查表——`setup_cmd_prefix()` 按站点分支,**spark 上优先用原生 micromamba env**。120 个注册工具中
+  **28 个解析到 micromamba env、1 个 apptainer、87 个为空**;`megahit` 实跑 `micromamba run -n megahit`,
+  `tools.yml` 里那个 `.img` 根本不被触及。**`envs/megahit` 不含任何版本 → 敞口是 28 个无版本 conda env,
+  远大于原先只盯的 7 个 `-latest.img`**(已回写 vpipe `IMP-055`)。
+- 每 release 出 **BOM**(落在 release 内 `.vpipe-release.yml`);**`run_manifest.json` 未做**(顺延,见 §7-D)。
 - shell contract ⊇ subcmd 名:argument order / named flags / env vars / cwd / output filenames / stdout+stderr / exit code 都是 public API。
 
 ### L3 — ABI 收窄(public surface):vpipe 暴露刻意设计的窄接口
@@ -201,8 +218,24 @@ qproj 负责 resolver / submission / step+write discipline / manifest;vpipe 完�
   **验证**:单元测试(直接调用 export 生效)+ **真实 minimal NF 实跑**(Java via minced env)。**建议(文档化,非强制)**:
   publishDir `mode:'copy'`(产物 outlive work cleanup) + driver 侧 `trap 'rm -rf "$(path_target)"' ERR`(MVP;
   staging→promote 可选 hardening)。
-- **D 版本契约**:vpipe 起统一 semver + 首个 "legacy baseline" release;生成 BOM;`vpipe.lock` + `vpipe contract check`;
-  修 `current`/`latest` → digest/release pin。
+- **D 版本契约 ✅ 完成(2026-07-21)**:vpipe `v0.9.0` legacy baseline(git tag = 版本 SSOT,`vpipe version`
+  同时充当自己版本元数据的漂移检测器 —— 此前 pyproject / nf manifest / 22 个 4 种格式的 tag 三方分叉且全停滞);
+  `vpipe bom generate|show|list|prune`;`vpipe contract check|resolve`;qproj `proj_vpipe_pin/_resolve/_check`
+  + `qproj.sh` 的 `qproj_vpipe_root`;试点 pc047e3 已 pin(commit `0d389f2`)。
+  - **release store = `~/bioinfo/vpipe-releases/<ver>+<sha7>`**(`DEC-D007`)。实测 `~/bioinfo` 在 spark1 是本地
+    ext4 rw、在 spark2 是 nfs4 **`ro`** → **内核免费强制不可变**,并强制「提交时物化、job 内只校验」的纪律。
+    release 只装 runtime(允许清单由代码实际触及推导),40.6 MB → 20.8 MB。
+  - **Bash resolver 不 shell out 到 Python**,这条被 job 100 实证救了命:计算节点上 `vpipe` CLI **根本不存在**
+    (`~/.local` 是节点本地盘)。若当初让它调 Python,spark2 上每个 batch job 都会失败。代价(bash 手搓 YAML)
+    由**跨解析器 round-trip 测试**承担,且解析器 fail-closed、无任何回落分支。
+  - **验收(sbatch job 100, spark2)**:spool 执行确证;`~/bioinfo` 不可写;正常路径 rc=0 且
+    `VPIPE`/`VPIPEBIN`/`assembly.slurm` 全落在 pinned release 内;失败路径 rc=1 响亮 abort 零回落;
+    **负对照** —— 把 lock 翻到另一个 commit,driver 连同 00-config.sh 自算的 `VPIPE` 一起跟随到另一棵树。
+    没有负对照,「pin 生效」就只是在读我们自己刚赋的变量值。
+  - **试点覆盖面扩大**:按用户 2026-07-21 裁定,pc047e3 的 megahit 算 `assembly.slurm` 覆盖面内(只验代码链路
+    在位、不真跑组装),新增 `megahit` subcmd 委托 `${VPIPE_ROOT}/bin/assembly.slurm` → **闭掉 §4 那条已知缺口**。
+  - **未做(顺延)**:`run_manifest.json`;`database.yml`/`tools.yml` 的实际 immutability 修改(用户裁定只出提案);
+    三个 `*_api` 目前一律为 1 且**无实质约束内容**(public surface 要到 E 阶段才存在)。
 - **E ABI 收窄**:vpipe 暴露 `lib/vpipe/runtime-v1.sh` + `conf/public/*.config`,00-config/functions 降 private。
 - **F fleet 治理**:`qproj deps audit` + firewall CI + `integrations.qproj` 隔离 `manuscript.py`。
 - **G Codex soundness 审 + 两仓 commit**(照 provenance 计划惯例:PID 等待、计数跑动态、送审前 ghost 检查)。

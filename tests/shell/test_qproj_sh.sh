@@ -260,8 +260,16 @@ is "lock defaults to \$QPROJ_ROOT/vpipe.lock" "$OUT" "$ROOT/vpipe.lock"
 sh_run "$INIT >/dev/null; QPROJ_VPIPE_LOCK='$LOCK' qproj_vpipe_lock_path"
 is "QPROJ_VPIPE_LOCK overrides the default location" "$OUT" "$LOCK"
 
+# Called directly the export survives; through `$( )` it cannot, because the substitution
+# is a subshell. The documented usage IS the substitution form, so the second assertion is
+# the one that matters: it is why qproj_vpipe_root's export must never be relied upon, and
+# why the probe asks qproj_vpipe_lock_path instead. (Same shape as the qproj_nf_prepare
+# subshell trap -- found here the same way, by a real driver printing "<unset>".)
 sh_run "$INIT >/dev/null; QPROJ_VPIPE_LOCK='$LOCK' qproj_vpipe_root >/dev/null; echo \"\$QPROJ_VPIPE_LOCK\""
-is "the resolved lock is exported for children" "$OUT" "$LOCK"
+is "direct call exports the resolved lock" "$OUT" "$LOCK"
+
+sh_run "$INIT >/dev/null; unset QPROJ_VPIPE_LOCK; r=\"\$(QPROJ_VPIPE_LOCK='$LOCK' qproj_vpipe_root)\"; echo \"[\${QPROJ_VPIPE_LOCK:-unset}]\""
+is "\$( ) discards it -- callers must use qproj_vpipe_lock_path" "$OUT" "[unset]"
 
 # -- refusals: each of these must abort rather than produce a path --
 

@@ -359,6 +359,12 @@ qproj_vpipe_root() {
         return 1
     fi
 
+    # NOTE: this export only reaches the caller when the function is invoked DIRECTLY.
+    # The documented usage is `VPIPE_ROOT="$(qproj_vpipe_root)"`, and a command
+    # substitution runs in a subshell, so there the export is discarded along with it --
+    # the same trap that makes `$(qproj_nf_prepare)` silently lose NXF_WORK. A caller that
+    # wants the lock path must ask for it: `qproj_vpipe_lock_path` is cheap, deterministic
+    # and side-effect free. The export is kept for direct callers, not relied upon.
     QPROJ_VPIPE_LOCK="$lock"; export QPROJ_VPIPE_LOCK
     printf '%s\n' "$root"
 }
