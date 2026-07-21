@@ -237,7 +237,7 @@ printf '\n-- vpipe.lock resolver --\n'
 
 # fixture: a release tree that looks materialised, and a lock naming it
 REL="$TMP/store/0.9.0+abcdef1"
-mkdir -p "$REL/bin"; : > "$REL/bin/00-config.sh"
+mkdir -p "$REL/bin"; : > "$REL/bin/00-config.sh"; : > "$REL/.vpipe-release.yml"
 
 mklock() {  # mklock <file> <release_path> [extra lines...]
   local f="$1" rp="$2"; shift 2
@@ -308,6 +308,18 @@ GONE="$TMP/gone.lock"; mklock "$GONE" "$TMP/store/nonexistent"
 sh_run "$INIT >/dev/null; QPROJ_VPIPE_LOCK='$GONE' qproj_vpipe_root"
 is  "absent release tree aborts" "$RC" "1"
 contains "absent release says materialise on the login node" "$ERR" "LOGIN NODE"
+
+# The single most dangerous hand-edit: point release_path at the live working checkout.
+# It has bin/00-config.sh, so a structural check that stops there resolves it happily and
+# the pin is gone -- with the run looking exactly like a pinned one. Nothing downstream
+# catches it either: `vpipe contract check` cannot run on a compute node (~/.local is
+# node-local). So the marker of a store-managed release has to be demanded here.
+mkdir -p "$TMP/fakevpipe/bin"; : > "$TMP/fakevpipe/bin/00-config.sh"
+UNMANAGED="$TMP/unmanaged.lock"; mklock "$UNMANAGED" "$TMP/fakevpipe"
+sh_run "$INIT >/dev/null; QPROJ_VPIPE_LOCK='$UNMANAGED' qproj_vpipe_root"
+is  "a tree without .vpipe-release.yml is refused" "$RC"  "1"
+is  "  ... and no path is emitted"                 "$OUT" ""
+contains "  ... and it explains the danger" "$ERR" "silently defeat the pin"
 
 mkdir -p "$TMP/store/empty"
 PART="$TMP/partial.lock"; mklock "$PART" "$TMP/store/empty"

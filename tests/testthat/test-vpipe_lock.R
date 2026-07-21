@@ -36,6 +36,7 @@ fake_release <- function(dir) {
   release <- fs::path(dir, "store", "0.9.0+abcdef1")
   fs::dir_create(fs::path(release, "bin"))
   fs::file_create(fs::path(release, "bin", "00-config.sh"))
+  fs::file_create(fs::path(release, ".vpipe-release.yml"))
   release
 }
 
@@ -146,9 +147,30 @@ test_that("resolving to an absent or incomplete release names the login-node fix
   path <- write_fake_lock(dir, release_path = fs::path(dir, "store", "absent"))
   expect_error(proj_vpipe_resolve(path), "read-only\\s+on\\s+compute nodes")
 
+  # An existing but empty directory now trips the release-marker check first, which is a
+  # more specific diagnosis than "incomplete": it says *why* the tree is not trustworthy.
   fs::dir_create(fs::path(dir, "store", "empty"))
   path <- write_fake_lock(dir, release_path = fs::path(dir, "store", "empty"))
+  expect_error(proj_vpipe_resolve(path), "not a materialised vpipe release")
+
+  # A tree that carries the marker but lost its runtime is the "incomplete" case.
+  half <- fs::path(dir, "store", "half")
+  fs::dir_create(half)
+  fs::file_create(fs::path(half, ".vpipe-release.yml"))
+  path <- write_fake_lock(dir, release_path = half)
   expect_error(proj_vpipe_resolve(path), "not present or is incomplete")
+})
+
+test_that("a tree without the release marker is refused", {
+  # `~/vpipe` has bin/00-config.sh too. Stopping the check there let a hand-edited
+  # release_path resolve to the live working checkout -- the pin silently gone, the run
+  # indistinguishable from a pinned one.
+  dir <- withr::local_tempdir()
+  unmanaged <- fs::path(dir, "fakevpipe")
+  fs::dir_create(fs::path(unmanaged, "bin"))
+  fs::file_create(fs::path(unmanaged, "bin", "00-config.sh"))
+  path <- write_fake_lock(dir, release_path = unmanaged)
+  expect_error(proj_vpipe_resolve(path), "not a materialised vpipe release")
 })
 
 test_that("resolving a complete release returns its path", {

@@ -358,6 +358,20 @@ qproj_vpipe_root() {
         printf '  the release is incomplete or was partially removed; re-materialise it.\n' >&2
         return 1
     fi
+    # Demand the marker of a store-managed, frozen release -- not merely "a directory that
+    # looks like vpipe". Without this, editing release_path to "$HOME/vpipe" resolves
+    # happily to the live working checkout: the pin is gone, every `git checkout` there
+    # silently changes what this project runs, and the run looks exactly like a pinned one.
+    # That is the precise failure this whole layer exists to remove, so it cannot be left
+    # to the Python contract check -- which is unreachable on a compute node anyway
+    # (~/.local is node-local; `vpipe` does not exist there).
+    if [ ! -r "$root/.vpipe-release.yml" ]; then
+        printf 'qproj: %s is not a materialised vpipe release (no .vpipe-release.yml)\n' "$root" >&2
+        printf '  refusing to run against an unmanaged tree -- a hand-edited release_path\n' >&2
+        printf '  pointing at a working checkout would silently defeat the pin.\n' >&2
+        printf '  fix: re-pin with Rscript -e '\''qproj::proj_vpipe_pin()'\''\n' >&2
+        return 1
+    fi
 
     # NOTE: this export only reaches the caller when the function is invoked DIRECTLY.
     # The documented usage is `VPIPE_ROOT="$(qproj_vpipe_root)"`, and a command

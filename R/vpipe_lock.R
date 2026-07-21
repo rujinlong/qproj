@@ -352,6 +352,19 @@ proj_vpipe_resolve <- function(path_proj = "analyses/vpipe.lock") {
     ))
   }
 
+  # The marker of a store-managed release. Without it, a hand-edited `release_path` of
+  # `~/vpipe` resolves to the live working checkout and the pin is silently gone -- the
+  # run looks identical to a pinned one. Mirrors the same check in qproj.sh.
+  if (fs::dir_exists(release) &&
+      !fs::file_exists(fs::path(release, ".vpipe-release.yml"))) {
+    cli::cli_abort(c(
+      "{.path {release}} is not a materialised vpipe release (no {.file .vpipe-release.yml}).",
+      "x" = "Refusing to run against an unmanaged tree: a {.field release_path} pointing at
+             a working checkout would silently defeat the pin.",
+      "i" = "Re-pin with {.run qproj::proj_vpipe_pin()}."
+    ))
+  }
+
   if (!fs::file_exists(fs::path(release, "bin", "00-config.sh"))) {
     cli::cli_abort(c(
       "The pinned vpipe release is not present or is incomplete: {.path {release}}.",
