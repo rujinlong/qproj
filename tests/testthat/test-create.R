@@ -140,6 +140,31 @@
 
   })
 
+  test_that("proj_create() decouples the directory name from the package name", {
+
+    localdir <- fs::path(tempdir, "pf116-DFG-vSCFA")
+
+    expect_no_error(
+      proj_create(path = localdir, name = "pf116DFGvSCFA")
+    )
+
+    # DESCRIPTION carries the explicit package name
+    desc_obj <- desc::description$new(file = fs::path(localdir, "DESCRIPTION"))
+    expect_identical(desc_obj$get("Package")[[1]], "pf116DFGvSCFA")
+
+    # README heading and .Rproj keep the directory name
+    expect_identical(readLines(fs::path(localdir, "README.md"))[1], "# pf116-DFG-vSCFA")
+    expect_true(fs::file_exists(fs::path(localdir, "pf116-DFG-vSCFA.Rproj")))
+
+    # an explicitly invalid `name` is still rejected, and leaves nothing behind
+    expect_error(
+      proj_create(fs::path(tempdir, "proj05"), name = "not-valid"),
+      "not a valid R package name"
+    )
+    expect_false(fs::dir_exists(fs::path(tempdir, "proj05")))
+
+  })
+
 }
 
 

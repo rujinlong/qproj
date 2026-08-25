@@ -4,7 +4,7 @@
 \alias{proj_create}
 \title{Create project}
 \usage{
-proj_create(path, fields = list(), rstudio = TRUE)
+proj_create(path, fields = list(), rstudio = TRUE, name = basename(path))
 }
 \arguments{
 \item{path}{\code{character} path to the new project directory.}
@@ -14,6 +14,11 @@ proj_create(path, fields = list(), rstudio = TRUE)
 \item{rstudio}{\code{logical} whether to also create a minimal \code{.Rproj} file
 so RStudio / Positron treat the directory as a project. Defaults to
 \code{TRUE}.}
+
+\item{name}{\code{character} R package name written to \code{DESCRIPTION}'s
+\code{Package} field. Must be a valid R package name (ASCII letters,
+digits and dots; starts with a letter; does not end with a dot).
+Defaults to the directory name.}
 }
 \value{
 Invisible \code{character} path to the created project, called for
@@ -30,10 +35,19 @@ empty; otherwise creation will abort to avoid overwriting files.
 Any named entries supplied via \code{fields} are written into
 \code{DESCRIPTION}, allowing you to override defaults such as \code{Title},
 \code{Version}, or add custom fields.
+
+The directory name and the R package name are decoupled: \code{name}
+defaults to the directory name, but can be set explicitly when the
+directory follows a naming convention that \code{DESCRIPTION}'s \code{Package}
+field cannot express (e.g. \code{pf116-DFG-vSCFA}). \code{Package} then takes
+\code{name}, while \code{README.md} and the \code{.Rproj} file keep the directory
+name.
 }
 \examples{
 # not run because it produces side effects
 if (FALSE) {
   proj_create("../new-project-name")
+  # directory name that is not a valid package name
+  proj_create("../pf116-DFG-vSCFA", name = "pf116DFGvSCFA")
 }
 }
